@@ -77,6 +77,7 @@ export default function RestaurantMenu() {
 
   const [tableInfo, setTableInfo] = useState<TableInfo | null>(null);
   const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
@@ -86,9 +87,12 @@ export default function RestaurantMenu() {
     if (t || f) {
       const info: TableInfo = { table: t || '', floor: f || '' };
       setTableInfo(info);
-      const key = `customerName_${info.table}_${info.floor}`;
-      const saved = localStorage.getItem(key);
-      if (saved) setCustomerName(saved);
+      const nameKey = `customerName_${info.table}_${info.floor}`;
+      const phoneKey = `customerPhone_${info.table}_${info.floor}`;
+      const savedName = localStorage.getItem(nameKey);
+      const savedPhone = localStorage.getItem(phoneKey);
+      if (savedName) setCustomerName(savedName);
+      if (savedPhone) setCustomerPhone(savedPhone);
 
       // When a customer opens the menu via QR, mark the table as occupied
       const tables = loadTables();
@@ -271,8 +275,11 @@ export default function RestaurantMenu() {
     if (totalItems === 0) setMobileCartOpen(false);
   }, [totalItems]);
   // format helper theo ngôn ngữ
-  const formatCurrency = (value: number) =>
-    value.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US');
+  const formatCurrency = (value: number | string) =>
+    Number(value || 0).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
 
   const menuSections = categories
     .map(category => ({
@@ -325,7 +332,78 @@ export default function RestaurantMenu() {
   };
 
   // nếu đã có thông tin bàn nhưng chưa nhập tên, hiển thị overlay login
-  if (tableInfo && !customerName) {
+  if (tableInfo && (!customerName.trim() || !customerPhone.trim())) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4 text-white">
+        <div className="w-full max-w-sm rounded-[2rem] border border-white/10 bg-zinc-900/95 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+          <p className="text-[11px] uppercase tracking-[0.3em] text-orange-400">
+            {lang === 'vi' ? 'Thông tin bàn' : 'Table check-in'}
+          </p>
+          <h2 className="mt-3 text-2xl font-black">
+            {lang === 'vi' ? 'Xác nhận thông tin' : 'Confirm your details'}
+          </h2>
+          <p className="mt-2 text-sm text-zinc-400">
+            {lang === 'vi' ? 'Vui lòng kiểm tra số bàn và nhập thông tin trước khi đặt món.' : 'Please check your table and enter your details before ordering.'}
+          </p>
+
+          <div className="mt-5 space-y-3">
+            <div className="rounded-[1.35rem] border border-white/10 bg-black/25 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                {lang === 'vi' ? 'Số bàn' : 'Table'}
+              </p>
+              <p className="mt-1 text-lg font-bold">
+                {tableInfo.table || '--'}{tableInfo.floor ? ` • ${lang === 'vi' ? `Tầng ${tableInfo.floor}` : `Floor ${tableInfo.floor}`}` : ''}
+              </p>
+            </div>
+
+            <div className="rounded-[1.35rem] border border-white/10 bg-black/25 px-4 py-3">
+              <label className="block text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                {lang === 'vi' ? 'Tên' : 'Name'}
+              </label>
+              <input
+                value={customerName}
+                onChange={e => setCustomerName(e.target.value)}
+                className="mt-2 w-full bg-transparent text-base font-medium text-white outline-none placeholder:text-zinc-500"
+                placeholder={lang === 'vi' ? 'Nhập tên của bạn' : 'Enter your name'}
+              />
+            </div>
+
+            <div className="rounded-[1.35rem] border border-white/10 bg-black/25 px-4 py-3">
+              <label className="block text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                {lang === 'vi' ? 'SĐT' : 'Phone'}
+              </label>
+              <input
+                value={customerPhone}
+                onChange={e => setCustomerPhone(e.target.value.replace(/[^\d+\s]/g, ''))}
+                inputMode="tel"
+                className="mt-2 w-full bg-transparent text-base font-medium text-white outline-none placeholder:text-zinc-500"
+                placeholder={lang === 'vi' ? 'Nhập số điện thoại' : 'Enter your phone number'}
+              />
+            </div>
+          </div>
+
+          <button
+            disabled={customerName.trim() === '' || customerPhone.trim() === ''}
+            onClick={() => {
+              const trimmedName = customerName.trim();
+              const trimmedPhone = customerPhone.trim();
+              const nameKey = `customerName_${tableInfo.table}_${tableInfo.floor}`;
+              const phoneKey = `customerPhone_${tableInfo.table}_${tableInfo.floor}`;
+              localStorage.setItem(nameKey, trimmedName);
+              localStorage.setItem(phoneKey, trimmedPhone);
+              setCustomerName(trimmedName);
+              setCustomerPhone(trimmedPhone);
+            }}
+            className="mt-5 w-full rounded-[1.35rem] bg-orange-500 py-3 text-sm font-bold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {lang === 'vi' ? 'Vào menu' : 'Continue'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (false && tableInfo && !customerName) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-900 text-white">
         <div className="bg-zinc-800 p-8 rounded-xl shadow-lg w-80">
@@ -377,7 +455,7 @@ export default function RestaurantMenu() {
     if (totalItems === 0) return;
     setIsLoading(true);
     try {
-      const payload = { cart, totalPrice, lang, customerName, table: tableInfo?.table, floor: tableInfo?.floor };
+      const payload = { cart, totalPrice, lang, customerName, customerPhone, table: tableInfo?.table, floor: tableInfo?.floor };
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -483,7 +561,7 @@ export default function RestaurantMenu() {
               <span className="text-xs uppercase opacity-70">
                 {ui[lang].items}: {totalItems}
               </span>
-              <span className="font-bold">{formatCurrency(totalPrice)}đ</span>
+              <span className="font-bold">{formatCurrency(totalPrice)}</span>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -612,7 +690,7 @@ export default function RestaurantMenu() {
                             </div>
                           </div>
                           <div className="flex justify-between items-end">
-                            <span className="font-black text-2xl tracking-tighter">{formatCurrency(item.price)}đ</span>
+                            <span className="font-black text-2xl tracking-tighter">{formatCurrency(item.price)}</span>
                             <button onClick={() => addToCart(item.id)} className={`${getAvailableStock(item.id) <= 0 ? 'bg-zinc-700 text-zinc-400 shadow-none' : 'bg-orange-500 hover:bg-orange-600 text-white shadow-xl shadow-orange-500/30'} p-3.5 rounded-2xl active:scale-90 transition-all`}>
                               <Plus size={20} strokeWidth={4} />
                             </button>
@@ -651,7 +729,7 @@ export default function RestaurantMenu() {
                           </div>
                         </div>
                         <div className="flex justify-between items-end">
-                          <span className="font-black text-2xl tracking-tighter">{formatCurrency(item.price)}đ</span>
+                          <span className="font-black text-2xl tracking-tighter">{formatCurrency(item.price)}</span>
                           <button onClick={() => addToCart(item.id)} className={`${getAvailableStock(item.id) <= 0 ? 'bg-zinc-700 text-zinc-400 shadow-none' : 'bg-orange-500 hover:bg-orange-600 text-white shadow-xl shadow-orange-500/30'} p-3.5 rounded-2xl active:scale-90 transition-all`}>
                             <Plus size={20} strokeWidth={4} />
                           </button>
@@ -684,7 +762,7 @@ export default function RestaurantMenu() {
                     <div key={id} className="flex justify-between items-center animate-in slide-in-from-right-3 duration-300">
                       <div className="flex-1">
                         <p className="font-bold text-sm leading-tight text-zinc-100">{lang === 'vi' ? item.nameVi : item.nameEn}</p>
-                        <p className="text-orange-500 font-black text-xs mt-1">{formatCurrency(item.price * qty)}đ</p>
+                        <p className="text-orange-500 font-black text-xs mt-1">{formatCurrency(item.price * qty)}</p>
                       </div>
                       <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/5">
                         <button onClick={() => updateQty(id, -1)} className="hover:text-orange-500 p-1"><Minus size={14} /></button>
@@ -703,7 +781,7 @@ export default function RestaurantMenu() {
                 <div>
                   <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-[0.3em] block mb-1">{ui[lang].total}</span>
                   <span className="text-4xl font-black text-orange-500 tracking-tighter drop-shadow-lg">
-                    {formatCurrency(totalPrice)}đ
+                    {formatCurrency(totalPrice)}
                   </span>
                 </div>
               </div>

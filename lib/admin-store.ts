@@ -9,6 +9,7 @@ export type AdminAccountRecord = {
   name: string;
   role: 'admin' | 'staff';
   email: string;
+  phone: string;
   twoFactorEnabled: boolean;
   createdAt: string;
   passwordHash?: string;
@@ -28,6 +29,7 @@ type JsonAccountRecord = {
   name?: string;
   role?: string;
   email?: string;
+  phone?: string;
   twoFactorEnabled?: boolean | number;
   createdAt?: string;
   passwordHash?: string;
@@ -41,6 +43,7 @@ const DEFAULT_ADMIN_ACCOUNT: JsonAccountRecord = {
   name: 'Administrator',
   role: 'admin',
   email: '',
+  phone: '',
   twoFactorEnabled: false,
   createdAt: new Date().toISOString(),
 };
@@ -61,6 +64,7 @@ function normalizeJsonAccount(record: JsonAccountRecord): AdminAccountRecord {
     name: String(record.name || 'Administrator').trim() || 'Administrator',
     role: record.role === 'admin' ? 'admin' : 'staff',
     email: String(record.email || '').trim(),
+    phone: String(record.phone || '').trim(),
     twoFactorEnabled: Boolean(record.twoFactorEnabled),
     createdAt: record.createdAt || new Date().toISOString(),
     passwordHash: record.passwordHash,
@@ -81,6 +85,7 @@ function writeJsonAccounts(accounts: AdminAccountRecord[]) {
       name: account.name,
       role: account.role,
       email: account.email,
+      phone: account.phone,
       twoFactorEnabled: account.twoFactorEnabled,
       createdAt: account.createdAt,
       passwordHash: account.passwordHash,
@@ -103,6 +108,7 @@ function stripSensitiveFields(account: AdminAccountRecord) {
     name: account.name,
     role: account.role,
     email: account.email,
+    phone: account.phone,
     twoFactorEnabled: account.twoFactorEnabled,
     createdAt: account.createdAt,
   };
@@ -112,7 +118,7 @@ export async function listAdminAccounts() {
   const db = await getAdminDb();
   if (db) {
     const [rows] = await db.query(
-      `SELECT id, username, name, role, email, two_factor_enabled as twoFactorEnabled, created_at as createdAt
+      `SELECT id, username, name, role, email, phone, two_factor_enabled as twoFactorEnabled, created_at as createdAt
        FROM accounts ORDER BY created_at ASC`
     );
     return rows as Array<Omit<AdminAccountRecord, 'passwordHash' | 'password'>>;
@@ -127,7 +133,7 @@ export async function findAdminAccountByUsername(username: string) {
 
   if (db) {
     const [rows] = await db.execute(
-      `SELECT id, username, password_hash as passwordHash, name, role, email,
+      `SELECT id, username, password_hash as passwordHash, name, role, email, phone,
               two_factor_enabled as twoFactorEnabled, created_at as createdAt
        FROM accounts WHERE username = ? LIMIT 1`,
       [normalizedUsername]
@@ -152,7 +158,7 @@ export async function findAdminAccountById(id: string) {
 
   if (db) {
     const [rows] = await db.execute(
-      `SELECT id, username, password_hash as passwordHash, name, role, email,
+      `SELECT id, username, password_hash as passwordHash, name, role, email, phone,
               two_factor_enabled as twoFactorEnabled, created_at as createdAt
        FROM accounts WHERE id = ? LIMIT 1`,
       [normalizedId]
@@ -185,6 +191,7 @@ export async function createAdminAccount(input: {
   password: string;
   name: string;
   email: string;
+  phone: string;
   role: 'admin' | 'staff';
   twoFactorEnabled: boolean;
 }) {
@@ -193,9 +200,9 @@ export async function createAdminAccount(input: {
 
   if (db) {
     await db.execute(
-      `INSERT INTO accounts (id, username, password_hash, name, role, email, two_factor_enabled)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [input.id, input.username, passwordHash, input.name, input.role, input.email, input.twoFactorEnabled ? 1 : 0]
+      `INSERT INTO accounts (id, username, password_hash, name, role, email, phone, two_factor_enabled)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [input.id, input.username, passwordHash, input.name, input.role, input.email, input.phone, input.twoFactorEnabled ? 1 : 0]
     );
 
     return {
@@ -204,6 +211,7 @@ export async function createAdminAccount(input: {
       name: input.name,
       role: input.role,
       email: input.email,
+      phone: input.phone,
       twoFactorEnabled: input.twoFactorEnabled,
       createdAt: new Date().toISOString(),
     };
@@ -220,6 +228,7 @@ export async function createAdminAccount(input: {
     name: input.name,
     role: input.role,
     email: input.email,
+    phone: input.phone,
     twoFactorEnabled: input.twoFactorEnabled,
     createdAt: new Date().toISOString(),
     passwordHash,
@@ -237,6 +246,7 @@ export async function updateAdminAccount(
     username?: string;
     name?: string;
     email?: string;
+    phone?: string;
     role?: 'admin' | 'staff';
     twoFactorEnabled?: boolean;
     password?: string;
@@ -259,6 +269,10 @@ export async function updateAdminAccount(
     if (updates.email !== undefined) {
       fields.push('email = ?');
       values.push(updates.email);
+    }
+    if (updates.phone !== undefined) {
+      fields.push('phone = ?');
+      values.push(updates.phone);
     }
     if (updates.role !== undefined) {
       fields.push('role = ?');
@@ -296,6 +310,7 @@ export async function updateAdminAccount(
     username: updates.username ?? current.username,
     name: updates.name ?? current.name,
     email: updates.email ?? current.email,
+    phone: updates.phone ?? current.phone,
     role: updates.role ?? current.role,
     twoFactorEnabled: updates.twoFactorEnabled ?? current.twoFactorEnabled,
   };

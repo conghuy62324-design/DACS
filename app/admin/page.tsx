@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Boxes,
@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   Users,
   Shield,
+  QrCode,
   LogOut,
   Sun,
   Moon,
@@ -48,7 +49,7 @@ ChartJS.register(
 
 
 // simple sidebar panel ids
-type Panel = 'dashboard' | 'products' | 'categories' | 'orders' | 'customers' | 'inventory' | 'coupons' | 'reports' | 'accounts';
+type Panel = 'dashboard' | 'products' | 'categories' | 'orders' | 'customers' | 'inventory' | 'coupons' | 'reports' | 'accounts' | 'tables';
 
 // shared types
 interface MenuItem {
@@ -95,6 +96,7 @@ interface StaffAccount {
   name: string;
   role: 'admin' | 'staff';
   email?: string;
+  phone?: string;
   twoFactorEnabled?: boolean;
 }
 
@@ -206,6 +208,345 @@ const DEFAULT_PRODUCT_IMAGE =
       <text x="160" y="206" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#fafafa">HCH RESTO</text>
     </svg>`
   );
+
+const TableQrPanel: React.FC<{
+  lang: 'vi' | 'en';
+  isDark: boolean;
+  tables: TableInfo[];
+  saveTables: (tables: TableInfo[]) => void;
+}> = ({ lang, isDark, tables, saveTables }) => {
+  const [tableNumber, setTableNumber] = useState('');
+  const [floor, setFloor] = useState('1');
+  const [origin] = useState(() => (typeof window !== 'undefined' ? window.location.origin : ''));
+  const [tableMessage, setTableMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  const makeQrUrl = (table: string, tableFloor: string) => `${origin}/?table=${table}&floor=${tableFloor}`;
+
+  const showTableMessage = (type: 'success' | 'error' | 'info', text: string) => {
+    setTableMessage({ type, text });
+  };
+
+  const createTable = () => {
+    const normalizedFloor = floor.trim();
+    const normalizedTable = tableNumber.trim().padStart(2, '0');
+    if (!normalizedTable || !normalizedFloor) {
+      showTableMessage('error', lang === 'vi' ? 'Vui lòng nhập số bàn và tầng.' : 'Please enter both table number and floor.');
+      return;
+    }
+
+    const id = `${normalizedFloor}-${normalizedTable}`;
+    if (tables.some(table => table.id === id)) {
+      showTableMessage('error', lang === 'vi' ? 'Bàn này đã có QR rồi.' : 'This table already has a QR code.');
+      return;
+    }
+
+    const next = [
+      {
+        id,
+        table: normalizedTable,
+        floor: normalizedFloor,
+        qr: makeQrUrl(normalizedTable, normalizedFloor),
+        active: true,
+        status: 'empty' as const,
+      },
+      ...tables,
+    ].sort((a, b) => {
+      const floorCompare = a.floor.localeCompare(b.floor, undefined, { numeric: true });
+      if (floorCompare !== 0) return floorCompare;
+      return a.table.localeCompare(b.table, undefined, { numeric: true });
+    });
+
+    saveTables(next);
+    setTableNumber('');
+    showTableMessage('success', lang === 'vi' ? `Đã tạo QR cho bàn ${normalizedTable}, tầng ${normalizedFloor}.` : `QR created for table ${normalizedTable}, floor ${normalizedFloor}.`);
+  };
+
+  const regenerateQrs = () => {
+    const next = tables.map(table => ({ ...table, qr: makeQrUrl(table.table, table.floor) }));
+    saveTables(next);
+    showTableMessage('success', lang === 'vi' ? 'Đã cập nhật lại toàn bộ link QR.' : 'All QR links were refreshed.');
+  };
+
+  const toggleActive = (id: string) => {
+    saveTables(tables.map(table => (table.id === id ? { ...table, active: !table.active } : table)));
+  };
+
+  const setStatus = (id: string, status: TableInfo['status']) => {
+    saveTables(tables.map(table => (table.id === id ? { ...table, status } : table)));
+  };
+
+  const deleteTable = (id: string) => {
+    saveTables(tables.filter(table => table.id !== id));
+    showTableMessage('info', lang === 'vi' ? 'Đã xóa bàn khỏi danh sách QR.' : 'Table removed from QR list.');
+  };
+
+  const printTableQr = (table: TableInfo) => {
+    if (typeof window === 'undefined') return;
+    const canvas = document.getElementById(`qr-${table.id}`) as HTMLCanvasElement | null;
+    const dataUrl = canvas?.toDataURL('image/png');
+    const printWindow = window.open('', '_blank', 'width=720,height=960');
+    if (!printWindow || !dataUrl) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>QR Table ${table.table}</title>
+          <style>
+            body { margin: 0; font-family: Arial, sans-serif; background: #111827; color: #ffffff; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+            .sheet { width: 360px; padding: 32px; border-radius: 28px; background: #18181b; border: 1px solid #3f3f46; text-align: center; }
+            .badge { display: inline-block; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(249,115,22,0.35); color: #fdba74; margin-bottom: 20px; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; font-weight: 700; }
+            img { width: 220px; height: 220px; border-radius: 24px; background: white; padding: 16px; }
+            .title { font-size: 34px; font-weight: 800; margin: 0; }
+            .subtitle { margin: 10px 0 24px; font-size: 16px; color: #d4d4d8; }
+            .url { margin-top: 18px; font-size: 12px; color: #a1a1aa; word-break: break-all; }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="badge">HCH RESTO QR</div>
+            <h1 class="title">Bàn ${table.table}</h1>
+            <p class="subtitle">Tầng ${table.floor}</p>
+            <img src="${dataUrl}" alt="QR Table ${table.table}" />
+            <p class="url">${table.qr}</p>
+          </div>
+          <script>
+            window.onload = function () {
+              window.print();
+              window.onafterprint = function () { window.close(); };
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const downloadTablePng = (table: TableInfo) => {
+    if (typeof window === 'undefined') return;
+    const canvas = document.getElementById(`qr-${table.id}`) as HTMLCanvasElement | null;
+    const dataUrl = canvas?.toDataURL('image/png');
+    if (!dataUrl) return;
+
+    const anchor = document.createElement('a');
+    anchor.href = dataUrl;
+    anchor.download = `hch-resto-ban-${table.table}-tang-${table.floor}.png`;
+    anchor.click();
+  };
+
+  const activeCount = tables.filter(table => table.active).length;
+  const emptyCount = tables.filter(table => table.status === 'empty').length;
+  const occupiedCount = tables.filter(table => table.status !== 'empty').length;
+
+  const getPresenceTone = (status: TableInfo['status']) => {
+    if (status === 'empty') {
+      return {
+        card: isDark
+          ? 'border-emerald-500/30 bg-[linear-gradient(180deg,rgba(16,185,129,0.1),rgba(24,24,27,0.92))] text-white'
+          : 'border-emerald-200 bg-emerald-50 text-zinc-900',
+        badge: 'bg-emerald-500 text-white',
+        ring: isDark ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-emerald-200 bg-white/70',
+        label: lang === 'vi' ? 'Trống' : 'Empty',
+      };
+    }
+
+    return {
+      card: isDark
+        ? 'border-red-500/30 bg-[linear-gradient(180deg,rgba(239,68,68,0.12),rgba(24,24,27,0.94))] text-white'
+        : 'border-red-200 bg-red-50 text-zinc-900',
+      badge: 'bg-red-500 text-white',
+      ring: isDark ? 'border-red-500/20 bg-red-500/5' : 'border-red-200 bg-white/70',
+      label: status === 'ordering' ? (lang === 'vi' ? 'Đang order' : 'Ordering') : (lang === 'vi' ? 'Có khách' : 'Occupied'),
+    };
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-3xl border border-zinc-800 bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-3">
+            <span className="inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
+              {lang === 'vi' ? 'QR bàn ăn' : 'Table QR'}
+            </span>
+            <div>
+              <h2 className="text-3xl font-extrabold text-white">{lang === 'vi' ? 'Tạo QR từng bàn riêng lẻ' : 'Generate QR per table'}</h2>
+              <p className="mt-2 max-w-2xl text-sm text-zinc-400">
+                {lang === 'vi'
+                  ? 'Tạo từng mã QR theo số bàn và tầng, in hoặc tải PNG để dán lên từng bàn. Khách quét mã sẽ mở menu và thấy ô nhập thông tin trước khi đặt món.'
+                  : 'Create QR codes by table and floor, then print or download PNG files for each table. Guests scanning the code open the menu and see the info popup first.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid min-w-[280px] grid-cols-2 gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 md:grid-cols-4">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'Tổng bàn' : 'Tables'}</p>
+              <p className="mt-2 text-3xl font-bold text-white">{tables.length}</p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'Hoạt động' : 'Active'}</p>
+              <p className="mt-2 text-3xl font-bold text-emerald-400">{activeCount}</p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'Trống' : 'Empty'}</p>
+              <p className="mt-2 text-3xl font-bold text-cyan-300">{emptyCount}</p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'Có khách' : 'Occupied'}</p>
+              <p className="mt-2 text-3xl font-bold text-red-300">{occupiedCount}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {tableMessage && (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            tableMessage.type === 'success'
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+              : tableMessage.type === 'error'
+                ? 'border-red-500/30 bg-red-500/10 text-red-300'
+                : 'border-blue-500/30 bg-blue-500/10 text-blue-300'
+          }`}
+        >
+          {tableMessage.text}
+        </div>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.35fr]">
+        <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-[0_16px_48px_rgba(0,0,0,0.28)]">
+          <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'Thêm bàn mới' : 'Add new table'}</h3>
+          <p className="mt-2 text-sm text-zinc-400">
+            {lang === 'vi'
+              ? 'Nhập đúng số bàn và tầng để tạo QR riêng cho từng bàn.'
+              : 'Enter the exact table number and floor to create an individual QR code.'}
+          </p>
+
+          <div className="mt-6 space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Số bàn' : 'Table number'}</label>
+              <input
+                type="text"
+                value={tableNumber}
+                onChange={e => setTableNumber(e.target.value.replace(/[^\d]/g, ''))}
+                placeholder={lang === 'vi' ? 'Ví dụ: 12' : 'Example: 12'}
+                className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Tầng' : 'Floor'}</label>
+              <input
+                value={floor}
+                onChange={e => setFloor(e.target.value)}
+                placeholder="1"
+                className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={createTable}
+              className="rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-500"
+            >
+              {lang === 'vi' ? 'Tạo QR cho bàn này' : 'Create table QR'}
+            </button>
+            <button
+              type="button"
+              onClick={regenerateQrs}
+              className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 font-semibold text-amber-300 transition hover:bg-amber-500/20"
+            >
+              {lang === 'vi' ? 'Cập nhật lại tất cả QR' : 'Refresh all QR'}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {tables.map(table => {
+            const tone = getPresenceTone(table.status);
+
+            return (
+            <div
+              key={table.id}
+              className={`rounded-3xl border p-5 shadow-[0_16px_48px_rgba(0,0,0,0.22)] ${tone.card}`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="text-2xl font-black">{lang === 'vi' ? 'Bàn' : 'Table'} {table.table}</div>
+                  <div className={`mt-1 text-sm ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>{lang === 'vi' ? 'Tầng' : 'Floor'} {table.floor}</div>
+                  <div className="mt-2 text-sm">
+                    {lang === 'vi' ? 'Trạng thái' : 'Status'}: <span className="font-semibold">{tone.label}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleActive(table.id)}
+                    className={`rounded-full px-3 py-2 text-xs font-semibold ${table.active ? tone.badge : 'bg-zinc-500 text-white'}`}
+                  >
+                    {table.active ? (lang === 'vi' ? 'Hoạt động' : 'Active') : (lang === 'vi' ? 'Tạm khoá' : 'Inactive')}
+                  </button>
+                  <select
+                    value={table.status}
+                    onChange={e => setStatus(table.id, e.target.value as TableInfo['status'])}
+                    className={`rounded-2xl border px-3 py-2 text-sm ${isDark ? 'border-zinc-600 bg-zinc-800 text-white' : 'border-zinc-300 bg-white text-zinc-900'}`}
+                  >
+                    <option value="empty">{lang === 'vi' ? 'Trống' : 'Empty'}</option>
+                    <option value="occupied">{lang === 'vi' ? 'Có khách' : 'Occupied'}</option>
+                    <option value="ordering">{lang === 'vi' ? 'Đang order' : 'Ordering'}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className={`mt-5 rounded-[28px] border p-4 ${tone.ring}`}>
+                <div className="flex items-center gap-4">
+                  <div className="rounded-[24px] bg-white p-3">
+                    <QRCodeCanvas id={`qr-${table.id}`} value={table.qr} size={112} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">{lang === 'vi' ? 'Link QR' : 'QR link'}</p>
+                    <div className={`mt-2 break-all text-xs ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>{table.qr}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => printTableQr(table)}
+                    className="rounded-2xl bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+                  >
+                    {lang === 'vi' ? 'In QR' : 'Print'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadTablePng(table)}
+                    className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+                  >
+                    {lang === 'vi' ? 'Tải PNG' : 'PNG'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteTable(table.id)}
+                    className="rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
+                  >
+                    {lang === 'vi' ? 'Xóa' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )})}
+
+          {tables.length === 0 && (
+            <div className="md:col-span-2 rounded-3xl border border-dashed border-zinc-700 bg-zinc-900/50 p-12 text-center text-zinc-400">
+              {lang === 'vi' ? 'Chưa có bàn nào được tạo QR. Hãy thêm bàn đầu tiên ở khối bên trái.' : 'No QR tables yet. Add your first table from the panel on the left.'}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ProductsPanel: React.FC<{
   lang: 'vi' | 'en';
@@ -766,6 +1107,8 @@ const DashboardPanel: React.FC<{
   const pendingOrders = orders.filter(o => o.status === 'Chờ xử lý' || o.status === 'Processing').length;
   const totalCustomers = new Set(todayOrders.map(order => order.customer.trim()).filter(Boolean)).size;
   const totalInventory = menuItems.length;
+  const dashboardOrderCount = todayOrders.length;
+  void pendingOrders;
 
   const chartData = {
     labels: sevenDaysData.labels,
@@ -806,7 +1149,7 @@ const DashboardPanel: React.FC<{
           <div className="flex items-start justify-between mb-4">
             <div>
               <p className="text-sm opacity-80 mb-1">Đơn hàng</p>
-              <p className="text-3xl font-bold">{pendingOrders}</p>
+              <p className="text-3xl font-bold">{dashboardOrderCount}</p>
               <p className="text-xs opacity-60 mt-2">Hôm nay: {todayOrders.length} đơn</p>
             </div>
             <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">🛒</div>
@@ -1388,6 +1731,7 @@ export default function AdminPage() {
   const [inventoryStock, setInventoryStock] = useState<InventoryState>({});
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
   const [accounts, setAccounts] = useState<StaffAccount[]>([]);
+  const [tables, setTables] = useState<TableInfo[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [authChecking, setAuthChecking] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -1405,6 +1749,41 @@ export default function AdminPage() {
   const [orderSelectedDate, setOrderSelectedDate] = useState(getDateInputValue(new Date()));
   const [customerViewMode, setCustomerViewMode] = useState<HistoryViewMode>('today');
   const [customerSelectedDate, setCustomerSelectedDate] = useState(getDateInputValue(new Date()));
+
+  const saveTables = (next: TableInfo[]) => {
+    setTables(next);
+    try {
+      localStorage.setItem('tables', JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  };
+
+  const updateTableStatusByOrder = useCallback((tableNumber?: string, floor?: string, status: TableInfo['status'] = 'empty') => {
+    if (!tableNumber || !floor) return;
+
+    setTables(current => {
+      let changed = false;
+      const next = current.map(table => {
+        if (table.table === tableNumber && table.floor === floor) {
+          if (table.status === status) return table;
+          changed = true;
+          return { ...table, status };
+        }
+        return table;
+      });
+
+      if (changed) {
+        try {
+          localStorage.setItem('tables', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+
+      return changed ? next : current;
+    });
+  }, []);
 
   const currentUser = accounts.find(acc => acc.id === currentUserId);
 
@@ -1469,12 +1848,47 @@ export default function AdminPage() {
   const fetchAccounts = async () => {
     try {
       const res = await fetch('/api/accounts');
-      const data = await res.json();
+      const raw = await res.text();
+      const data = raw ? JSON.parse(raw) : null;
       if (Array.isArray(data)) setAccounts(data);
     } catch (err) {
       console.error('Failed to fetch accounts', err);
     }
   };
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('tables');
+      const parsed = raw ? JSON.parse(raw) : [];
+      setTables(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setTables([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    const syncTables = () => {
+      try {
+        const raw = localStorage.getItem('tables');
+        const parsed = raw ? JSON.parse(raw) : [];
+        const next = Array.isArray(parsed) ? parsed : [];
+        setTables(current => {
+          if (JSON.stringify(current) === JSON.stringify(next)) return current;
+          return next;
+        });
+      } catch {
+        // ignore malformed local storage payloads
+      }
+    };
+
+    window.addEventListener('storage', syncTables);
+    const interval = window.setInterval(syncTables, 1500);
+
+    return () => {
+      window.removeEventListener('storage', syncTables);
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const loadCurrentUserId = () => {
     try {
@@ -1692,6 +2106,425 @@ export default function AdminPage() {
   };
 
   const OrderPanel: React.FC<{
+    orders: OrderType[];
+    setOrders: React.Dispatch<React.SetStateAction<OrderType[]>>;
+    viewMode: HistoryViewMode;
+    selectedDate: string;
+    onViewModeChange: (mode: HistoryViewMode) => void;
+    onSelectedDateChange: (value: string) => void;
+  }> = ({ orders, setOrders, viewMode, selectedDate, onViewModeChange, onSelectedDateChange }) => {
+    const todayKey = getDateInputValue(new Date());
+    const [origin, setOrigin] = useState('');
+    const [detailOrder, setDetailOrder] = useState<OrderType | null>(null);
+
+    useEffect(() => {
+      if (typeof window !== 'undefined') {
+        setOrigin(window.location.origin);
+      }
+    }, []);
+
+    const filteredOrders = orders
+      .filter(order => {
+        const activeDate = viewMode === 'today' ? todayKey : selectedDate;
+        return isSameDate(order.createdAt, activeDate);
+      })
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    const counts = filteredOrders.reduce(
+      (acc, order) => {
+        const status = order.status;
+        if (status === 'Chờ xử lý' || status === 'Processing') acc.processing++;
+        if (status === 'Đang nấu' || status === 'Cooking') acc.cooking++;
+        if (status === 'Đã nấu xong' || status === 'Cooked') acc.cooked++;
+        if (status === 'Từ chối' || status === 'Rejected') acc.rejected++;
+        if (status === 'Đã phục vụ' || status === 'Served') acc.served++;
+        if (status === 'Đã thanh toán' || status === 'Paid') acc.paid++;
+        return acc;
+      },
+      { processing: 0, cooking: 0, cooked: 0, rejected: 0, served: 0, paid: 0 },
+    );
+
+    const updateStatus = async (id: string, newStatus: string) => {
+      const targetOrder = orders.find(order => order.id === id);
+
+      setOrders(current =>
+        current.map(order => {
+          if (order.id !== id) return order;
+          const next = { ...order, status: newStatus };
+          if ((newStatus === 'Đã thanh toán' || newStatus === 'Paid') && !next.deducted) {
+            subtractInventoryForOrder(next);
+            next.deducted = true;
+          }
+          return next;
+        }),
+      );
+
+      if (targetOrder?.table && targetOrder?.floor) {
+        if (newStatus === 'Đã thanh toán' || newStatus === 'Paid') {
+          updateTableStatusByOrder(targetOrder.table, targetOrder.floor, 'empty');
+        } else if (newStatus === 'Chờ xử lý' || newStatus === 'Processing' || newStatus === 'Đang nấu' || newStatus === 'Cooking' || newStatus === 'Đã nấu xong' || newStatus === 'Cooked' || newStatus === 'Đã phục vụ' || newStatus === 'Served') {
+          updateTableStatusByOrder(targetOrder.table, targetOrder.floor, 'ordering');
+        }
+      }
+
+      try {
+        await fetch('/api/orders', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, status: newStatus }),
+        });
+      } catch (err) {
+        console.error('Failed to update order status', err);
+      }
+    };
+
+    const updateHandler = async (id: string, handler: string) => {
+      setOrders(current => current.map(order => (order.id === id ? { ...order, handler } : order)));
+      try {
+        await fetch('/api/orders', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, handler }),
+        });
+      } catch (err) {
+        console.error('Failed to update handler', err);
+      }
+    };
+
+    const printOrder = (order: OrderType) => {
+      const text = order.items
+        .map(item => {
+          const menu = menuItems.find(menuEntry => menuEntry.id === item.id);
+          const name = menu ? (lang === 'vi' ? menu.nameVi : menu.nameEn) : item.id;
+          return `${name} x${item.qty}`;
+        })
+        .join('\n');
+      const win = window.open('', '_blank');
+      if (!win) return;
+      win.document.write(`<pre>${t[lang].management} - ${t[lang].orders}\n\n`);
+      win.document.write(`Table: ${order.table} (Floor ${order.floor})\n`);
+      win.document.write(`Customer: ${order.customer}\n`);
+      win.document.write(`Items:\n${text}\n\n`);
+      win.document.write(`Total: ${formatVND(order.total || 0)}\n`);
+      win.document.write(`</pre>`);
+      win.document.write(`<script>window.print();window.onafterprint=function(){window.close();}</script>`);
+      win.document.close();
+    };
+
+    const statuses = [
+      lang === 'vi' ? 'Chờ xử lý' : 'Processing',
+      lang === 'vi' ? 'Đang nấu' : 'Cooking',
+      lang === 'vi' ? 'Đã nấu xong' : 'Cooked',
+      lang === 'vi' ? 'Từ chối' : 'Rejected',
+      lang === 'vi' ? 'Đã phục vụ' : 'Served',
+      lang === 'vi' ? 'Đã thanh toán' : 'Paid',
+    ];
+
+    const payUrl = (id: string) => `${origin}/pay/${id}`;
+
+    const summaryLabelMap: Record<string, string> = {
+      processing: lang === 'vi' ? 'Chờ xử lý' : 'Processing',
+      cooking: lang === 'vi' ? 'Đang nấu' : 'Cooking',
+      cooked: lang === 'vi' ? 'Đã nấu xong' : 'Cooked',
+      rejected: lang === 'vi' ? 'Từ chối' : 'Rejected',
+      served: lang === 'vi' ? 'Đã phục vụ' : 'Served',
+      paid: lang === 'vi' ? 'Đã thanh toán' : 'Paid',
+    };
+
+    const getStatusTone = (status: string) => {
+      if (status === 'Đang nấu' || status === 'Cooking') {
+        return {
+          badge: 'border border-amber-300/40 bg-amber-400/20 text-amber-100',
+          card: isDark ? 'border-amber-300/40 bg-amber-400/10 shadow-[0_18px_40px_-26px_rgba(251,191,36,0.75)]' : 'border-amber-300 bg-amber-50',
+        };
+      }
+
+      if (status === 'Đã nấu xong' || status === 'Cooked') {
+        return {
+          badge: 'border border-sky-300/40 bg-sky-400/20 text-sky-100',
+          card: isDark ? 'border-sky-300/40 bg-sky-500/10 shadow-[0_18px_40px_-26px_rgba(56,189,248,0.8)]' : 'border-sky-300 bg-sky-50',
+        };
+      }
+
+      if (status === 'Chờ xử lý' || status === 'Processing') {
+        return {
+          badge: 'border border-cyan-300/30 bg-cyan-400/15 text-cyan-100',
+          card: isDark ? 'border-cyan-400/30 bg-cyan-500/8' : 'border-cyan-200 bg-cyan-50',
+        };
+      }
+
+      if (status === 'Từ chối' || status === 'Rejected') {
+        return {
+          badge: 'border border-rose-300/30 bg-rose-400/15 text-rose-100',
+          card: isDark ? 'border-rose-400/30 bg-rose-500/8' : 'border-rose-200 bg-rose-50',
+        };
+      }
+
+      if (status === 'Đã phục vụ' || status === 'Served') {
+        return {
+          badge: 'border border-emerald-300/30 bg-emerald-400/15 text-emerald-100',
+          card: isDark ? 'border-emerald-400/30 bg-emerald-500/8' : 'border-emerald-200 bg-emerald-50',
+        };
+      }
+
+      return {
+        badge: 'border border-indigo-300/30 bg-indigo-400/15 text-indigo-100',
+        card: isDark ? 'border-indigo-400/30 bg-indigo-500/8' : 'border-indigo-200 bg-indigo-50',
+      };
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className={`rounded-2xl border p-3 md:p-4 ${isDark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-zinc-50'}`}>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className={`inline-flex w-fit rounded-2xl p-1 ${isDark ? 'bg-zinc-950/80' : 'bg-white shadow-sm'}`}>
+              <button
+                type="button"
+                onClick={() => onViewModeChange('today')}
+                className={`rounded-xl px-4 py-2 transition ${viewMode === 'today' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : isDark ? 'text-zinc-300 hover:bg-zinc-800' : 'text-zinc-600 hover:bg-zinc-100'}`}
+              >
+                {lang === 'vi' ? 'Đơn hôm nay' : 'Today orders'}
+              </button>
+              <button
+                type="button"
+                onClick={() => onViewModeChange('history')}
+                className={`rounded-xl px-4 py-2 transition ${viewMode === 'history' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : isDark ? 'text-zinc-300 hover:bg-zinc-800' : 'text-zinc-600 hover:bg-zinc-100'}`}
+              >
+                {lang === 'vi' ? 'Xem lịch sử' : 'History'}
+              </button>
+            </div>
+
+            {viewMode === 'history' && (
+              <label className="flex items-center gap-3">
+                <span className={`text-sm font-medium ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                  {lang === 'vi' ? 'Chọn ngày' : 'Choose date'}
+                </span>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => onSelectedDateChange(e.target.value)}
+                  className={`rounded-xl border px-4 py-2 ${isDark ? 'border-zinc-700 bg-zinc-800 text-white' : 'border-zinc-300 bg-white text-zinc-900'}`}
+                />
+              </label>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          {Object.entries(counts).map(([key, value]) => (
+            <span
+              key={key}
+              className="rounded-full bg-linear-to-r from-blue-500 to-cyan-500 px-3 py-1 text-sm font-semibold text-white shadow-sm"
+            >
+              {summaryLabelMap[key]}: {value}
+            </span>
+          ))}
+        </div>
+
+        {filteredOrders.length > 0 ? (
+          <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+            {filteredOrders.map((order, index) => {
+              const totalItems = order.items.reduce((sum, item) => sum + item.qty, 0);
+              const tone = getStatusTone(order.status);
+
+              return (
+                <article
+                  key={order.id}
+                  className={`rounded-[22px] border p-3.5 transition ${tone.card} ${isDark ? 'text-white' : 'text-zinc-900'}`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2.5">
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] ${isDark ? 'bg-black/30 text-zinc-200' : 'bg-white/80 text-zinc-700'}`}>
+                          {lang === 'vi' ? `Thứ tự #${index + 1}` : `Queue #${index + 1}`}
+                        </span>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone.badge}`}>
+                          {order.status}
+                        </span>
+                      </div>
+
+                      <div>
+                        <p className="text-lg font-black leading-tight md:text-[1.7rem]">
+                          {lang === 'vi' ? 'Đơn' : 'Order'} #{order.id}
+                        </p>
+                        <p className={`mt-0.5 text-sm ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                          {lang === 'vi' ? `Khách ${order.customer || 'Khách lẻ'}` : `Customer ${order.customer || 'Walk-in'}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className={`min-w-[124px] rounded-[18px] border px-3 py-2 text-right ${isDark ? 'border-white/10 bg-black/25' : 'border-zinc-200 bg-white/80'}`}>
+                      <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-500">
+                        {lang === 'vi' ? 'Tổng tiền' : 'Total'}
+                      </p>
+                      <p className="mt-1 text-lg font-black text-orange-400 md:text-[1.6rem]">
+                        {formatVND(order.total || 0)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 grid gap-2 grid-cols-3">
+                    <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
+                      <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                        {lang === 'vi' ? 'Bàn / tầng' : 'Table / floor'}
+                      </p>
+                      <p className="mt-1 text-sm font-bold md:text-base">
+                        {order.table || '--'}{order.floor ? ` • ${lang === 'vi' ? `Tầng ${order.floor}` : `Floor ${order.floor}`}` : ''}
+                      </p>
+                    </div>
+
+                    <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
+                      <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                        {lang === 'vi' ? 'Thời gian' : 'Time'}
+                      </p>
+                      <p className="mt-1 text-sm font-bold md:text-base">
+                        {new Date(order.createdAt).toLocaleTimeString(lang === 'vi' ? 'vi-VN' : 'en-US')}
+                      </p>
+                      <p className={`text-xs md:text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                        {new Date(order.createdAt).toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-US')}
+                      </p>
+                    </div>
+
+                    <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
+                      <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                        {lang === 'vi' ? 'Tổng món' : 'Total items'}
+                      </p>
+                      <p className="mt-1 text-sm font-bold md:text-base">{totalItems}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 grid gap-2 grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={() => setDetailOrder(order)}
+                      className={`inline-flex h-12 items-center justify-center rounded-2xl border px-3 text-center text-sm font-semibold transition ${
+                        isDark
+                          ? 'border-white/10 bg-black/25 text-white hover:bg-black/40'
+                          : 'border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50'
+                      }`}
+                    >
+                      {lang === 'vi' ? 'Xem' : 'View'}
+                    </button>
+                    <a
+                      href={payUrl(order.id)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-500 px-3 text-center text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
+                    >
+                      {lang === 'vi' ? 'Thanh toán' : 'Pay'}
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => printOrder(order)}
+                      className="h-12 rounded-2xl bg-blue-600 px-3 text-center text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500"
+                    >
+                      {lang === 'vi' ? 'In phiếu' : 'Print'}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className={`rounded-[28px] border border-dashed p-12 text-center ${isDark ? 'border-zinc-800 bg-zinc-900/40 text-zinc-400' : 'border-zinc-300 bg-zinc-50 text-zinc-500'}`}>
+            {lang === 'vi' ? 'Không có đơn hàng trong ngày được chọn.' : 'No orders for the selected day.'}
+          </div>
+        )}
+
+        {detailOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+            <div className={`w-full max-w-3xl rounded-[28px] border p-5 shadow-2xl ${isDark ? 'border-zinc-700 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-900'}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className={`text-xs font-semibold uppercase tracking-[0.24em] ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                    {lang === 'vi' ? 'Chi tiết đơn' : 'Order details'}
+                  </p>
+                  <h3 className="mt-2 text-2xl font-black">
+                    {lang === 'vi' ? 'Đơn' : 'Order'} #{detailOrder.id}
+                  </h3>
+                  <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    {lang === 'vi' ? `Khách ${detailOrder.customer || 'Khách lẻ'}` : `Customer ${detailOrder.customer || 'Walk-in'}`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetailOrder(null)}
+                  className={`inline-flex h-11 min-w-11 items-center justify-center rounded-2xl border px-3 text-sm font-semibold ${isDark ? 'border-zinc-700 bg-zinc-900 text-zinc-200' : 'border-zinc-300 bg-zinc-100 text-zinc-700'}`}
+                >
+                  {lang === 'vi' ? 'Đóng' : 'Close'}
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
+                <div className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-zinc-50'}`}>
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'Trạng thái' : 'Status'}</p>
+                  <p className="mt-2 text-sm font-bold">{detailOrder.status}</p>
+                </div>
+                <div className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-zinc-50'}`}>
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'Bàn / tầng' : 'Table / floor'}</p>
+                  <p className="mt-2 text-sm font-bold">
+                    {detailOrder.table || '--'}{detailOrder.floor ? ` • ${lang === 'vi' ? `Tầng ${detailOrder.floor}` : `Floor ${detailOrder.floor}`}` : ''}
+                  </p>
+                </div>
+                <div className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-zinc-50'}`}>
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'Thời gian' : 'Time'}</p>
+                  <p className="mt-2 text-sm font-bold">{new Date(detailOrder.createdAt).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')}</p>
+                </div>
+                <div className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-zinc-50'}`}>
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'Tổng tiền' : 'Total'}</p>
+                  <p className="mt-2 text-xl font-black text-orange-400">{formatVND(detailOrder.total || 0)}</p>
+                </div>
+              </div>
+
+              <div className={`mt-4 rounded-[24px] border p-4 ${isDark ? 'border-zinc-800 bg-zinc-900/60' : 'border-zinc-200 bg-zinc-50'}`}>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-base font-semibold">{lang === 'vi' ? 'Danh sách món' : 'Items'}</p>
+                  <span className={`text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    {detailOrder.items.reduce((sum, item) => sum + item.qty, 0)} {lang === 'vi' ? 'món' : 'items'}
+                  </span>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {detailOrder.items.map(item => {
+                    const menu = menuItems.find(menuEntry => menuEntry.id === item.id);
+                    const name = menu ? (lang === 'vi' ? menu.nameVi : menu.nameEn) : item.id;
+                    return (
+                      <div
+                        key={`${detailOrder.id}-${item.id}`}
+                        className={`rounded-2xl px-4 py-3 text-sm font-medium ${isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-zinc-700'}`}
+                      >
+                        {name} x{item.qty}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <a
+                  href={payUrl(detailOrder.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-emerald-500 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
+                >
+                  {lang === 'vi' ? 'Thanh toán' : 'Pay'}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => printOrder(detailOrder)}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-500"
+                >
+                  {lang === 'vi' ? 'In phiếu' : 'Print'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const LegacyOrderPanel: React.FC<{
     orders: OrderType[];
     setOrders: React.Dispatch<React.SetStateAction<OrderType[]>>;
     viewMode: HistoryViewMode;
@@ -2094,6 +2927,319 @@ export default function AdminPage() {
     tables: TableInfo[];
     saveTables: (tables: TableInfo[]) => void;
   }> = ({ lang, isDark, tables, saveTables }) => {
+    const [tableNumber, setTableNumber] = useState('');
+    const [floor, setFloor] = useState('1');
+    const [origin, setOrigin] = useState('');
+    const [tableMessage, setTableMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+    useEffect(() => {
+      if (typeof window !== 'undefined') setOrigin(window.location.origin);
+    }, []);
+
+    const makeQrUrl = (table: string, tableFloor: string) => `${origin}/?table=${table}&floor=${tableFloor}`;
+
+    const showTableMessage = (type: 'success' | 'error' | 'info', text: string) => {
+      setTableMessage({ type, text });
+    };
+
+    const createTable = () => {
+      const normalizedFloor = floor.trim();
+      const normalizedTable = tableNumber.trim().padStart(2, '0');
+      if (!normalizedTable || !normalizedFloor) {
+        showTableMessage('error', lang === 'vi' ? 'Vui lòng nhập số bàn và tầng.' : 'Please enter both table number and floor.');
+        return;
+      }
+
+      const id = `${normalizedFloor}-${normalizedTable}`;
+      if (tables.some(table => table.id === id)) {
+        showTableMessage('error', lang === 'vi' ? 'Bàn này đã có QR rồi.' : 'This table already has a QR code.');
+        return;
+      }
+
+      const next = [
+        {
+          id,
+          table: normalizedTable,
+          floor: normalizedFloor,
+          qr: makeQrUrl(normalizedTable, normalizedFloor),
+          active: true,
+          status: 'empty' as const,
+        },
+        ...tables,
+      ].sort((a, b) => {
+        const floorCompare = a.floor.localeCompare(b.floor, undefined, { numeric: true });
+        if (floorCompare !== 0) return floorCompare;
+        return a.table.localeCompare(b.table, undefined, { numeric: true });
+      });
+
+      saveTables(next);
+      setTableNumber('');
+      showTableMessage('success', lang === 'vi' ? `Đã tạo QR cho bàn ${normalizedTable}, tầng ${normalizedFloor}.` : `QR created for table ${normalizedTable}, floor ${normalizedFloor}.`);
+    };
+
+    const regenerateQrs = () => {
+      const next = tables.map(table => ({ ...table, qr: makeQrUrl(table.table, table.floor) }));
+      saveTables(next);
+      showTableMessage('success', lang === 'vi' ? 'Đã cập nhật lại toàn bộ link QR.' : 'All QR links were refreshed.');
+    };
+
+    const toggleActive = (id: string) => {
+      saveTables(tables.map(table => (table.id === id ? { ...table, active: !table.active } : table)));
+    };
+
+    const setStatus = (id: string, status: TableInfo['status']) => {
+      saveTables(tables.map(table => (table.id === id ? { ...table, status } : table)));
+    };
+
+    const deleteTable = (id: string) => {
+      saveTables(tables.filter(table => table.id !== id));
+      showTableMessage('info', lang === 'vi' ? 'Đã xóa bàn khỏi danh sách QR.' : 'Table removed from QR list.');
+    };
+
+    const printTableQr = (table: TableInfo) => {
+      if (typeof window === 'undefined') return;
+      const canvas = document.getElementById(`qr-${table.id}`) as HTMLCanvasElement | null;
+      const dataUrl = canvas?.toDataURL('image/png');
+      const printWindow = window.open('', '_blank', 'width=720,height=960');
+      if (!printWindow || !dataUrl) return;
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>QR Table ${table.table}</title>
+            <style>
+              body { margin: 0; font-family: Arial, sans-serif; background: #111827; color: #ffffff; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+              .sheet { width: 360px; padding: 32px; border-radius: 28px; background: #18181b; border: 1px solid #3f3f46; text-align: center; }
+              .badge { display: inline-block; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(249,115,22,0.35); color: #fdba74; margin-bottom: 20px; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; font-weight: 700; }
+              img { width: 220px; height: 220px; border-radius: 24px; background: white; padding: 16px; }
+              .title { font-size: 34px; font-weight: 800; margin: 0; }
+              .subtitle { margin: 10px 0 24px; font-size: 16px; color: #d4d4d8; }
+              .url { margin-top: 18px; font-size: 12px; color: #a1a1aa; word-break: break-all; }
+            </style>
+          </head>
+          <body>
+            <div class="sheet">
+              <div class="badge">HCH RESTO QR</div>
+              <h1 class="title">Bàn ${table.table}</h1>
+              <p class="subtitle">Tầng ${table.floor}</p>
+              <img src="${dataUrl}" alt="QR Table ${table.table}" />
+              <p class="url">${table.qr}</p>
+            </div>
+            <script>
+              window.onload = function () {
+                window.print();
+                window.onafterprint = function () { window.close(); };
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    };
+
+    const downloadTablePng = (table: TableInfo) => {
+      if (typeof window === 'undefined') return;
+      const canvas = document.getElementById(`qr-${table.id}`) as HTMLCanvasElement | null;
+      const dataUrl = canvas?.toDataURL('image/png');
+      if (!dataUrl) return;
+
+      const anchor = document.createElement('a');
+      anchor.href = dataUrl;
+      anchor.download = `hch-resto-ban-${table.table}-tang-${table.floor}.png`;
+      anchor.click();
+    };
+
+    const activeCount = tables.filter(table => table.active).length;
+    const emptyCount = tables.filter(table => table.status === 'empty').length;
+
+    return (
+      <div className="space-y-6">
+        <div className="rounded-3xl border border-zinc-800 bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-3">
+              <span className="inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
+                {lang === 'vi' ? 'QR bàn ăn' : 'Table QR'}
+              </span>
+              <div>
+                <h2 className="text-3xl font-extrabold text-white">{lang === 'vi' ? 'Tạo QR từng bàn riêng lẻ' : 'Generate QR per table'}</h2>
+                <p className="mt-2 max-w-2xl text-sm text-zinc-400">
+                  {lang === 'vi'
+                    ? 'Tạo từng mã QR theo số bàn và tầng, in hoặc tải PNG để dán lên từng bàn. Khách quét mã sẽ mở menu và thấy ô nhập thông tin trước khi đặt món.'
+                    : 'Create QR codes by table and floor, then print or download PNG files for each table. Guests scanning the code open the menu and see the info popup first.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid min-w-[280px] grid-cols-3 gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'Tổng bàn' : 'Tables'}</p>
+                <p className="mt-2 text-3xl font-bold text-white">{tables.length}</p>
+              </div>
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'Hoạt động' : 'Active'}</p>
+                <p className="mt-2 text-3xl font-bold text-emerald-400">{activeCount}</p>
+              </div>
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'Trống' : 'Empty'}</p>
+                <p className="mt-2 text-3xl font-bold text-cyan-300">{emptyCount}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {tableMessage && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm ${
+              tableMessage.type === 'success'
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                : tableMessage.type === 'error'
+                  ? 'border-red-500/30 bg-red-500/10 text-red-300'
+                  : 'border-blue-500/30 bg-blue-500/10 text-blue-300'
+            }`}
+          >
+            {tableMessage.text}
+          </div>
+        )}
+
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.35fr]">
+          <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-[0_16px_48px_rgba(0,0,0,0.28)]">
+            <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'Thêm bàn mới' : 'Add new table'}</h3>
+            <p className="mt-2 text-sm text-zinc-400">
+              {lang === 'vi'
+                ? 'Nhập đúng số bàn và tầng để tạo QR riêng cho từng bàn.'
+                : 'Enter the exact table number and floor to create an individual QR code.'}
+            </p>
+
+            <div className="mt-6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Số bàn' : 'Table number'}</label>
+                <input
+                  type="text"
+                  value={tableNumber}
+                  onChange={e => setTableNumber(e.target.value.replace(/[^\d]/g, ''))}
+                  placeholder={lang === 'vi' ? 'Ví dụ: 12' : 'Example: 12'}
+                  className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Tầng' : 'Floor'}</label>
+                <input
+                  value={floor}
+                  onChange={e => setFloor(e.target.value)}
+                  placeholder="1"
+                  className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={createTable}
+                className="rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-500"
+              >
+                {lang === 'vi' ? 'Tạo QR cho bàn này' : 'Create table QR'}
+              </button>
+              <button
+                type="button"
+                onClick={regenerateQrs}
+                className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 font-semibold text-amber-300 transition hover:bg-amber-500/20"
+              >
+                {lang === 'vi' ? 'Cập nhật lại tất cả QR' : 'Refresh all QR'}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {tables.map(table => (
+              <div
+                key={table.id}
+                className={`rounded-3xl border p-5 shadow-[0_16px_48px_rgba(0,0,0,0.22)] ${isDark ? 'border-zinc-800 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-900'}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="text-2xl font-black">{lang === 'vi' ? 'Bàn' : 'Table'} {table.table}</div>
+                    <div className="mt-1 text-sm text-zinc-400">{lang === 'vi' ? 'Tầng' : 'Floor'} {table.floor}</div>
+                    <div className="mt-2 text-sm">
+                      {lang === 'vi' ? 'Trạng thái' : 'Status'}: <span className="font-medium">{table.status === 'empty' ? (lang === 'vi' ? 'Trống' : 'Empty') : table.status === 'occupied' ? (lang === 'vi' ? 'Có khách' : 'Occupied') : (lang === 'vi' ? 'Đang order' : 'Ordering')}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleActive(table.id)}
+                      className={`rounded-full px-3 py-2 text-xs font-semibold ${table.active ? 'bg-green-600 text-white' : 'bg-zinc-500 text-white'}`}
+                    >
+                      {table.active ? (lang === 'vi' ? 'Hoạt động' : 'Active') : (lang === 'vi' ? 'Tạm khoá' : 'Inactive')}
+                    </button>
+                    <select
+                      value={table.status}
+                      onChange={e => setStatus(table.id, e.target.value as TableInfo['status'])}
+                      className={`rounded-2xl border px-3 py-2 text-sm ${isDark ? 'border-zinc-600 bg-zinc-800 text-white' : 'border-zinc-300 bg-white text-zinc-900'}`}
+                    >
+                      <option value="empty">{lang === 'vi' ? 'Trống' : 'Empty'}</option>
+                      <option value="occupied">{lang === 'vi' ? 'Có khách' : 'Occupied'}</option>
+                      <option value="ordering">{lang === 'vi' ? 'Đang order' : 'Ordering'}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-[28px] border border-zinc-800 bg-zinc-950/70 p-4">
+                  <div className="flex items-center gap-4">
+                    <div className="rounded-[24px] bg-white p-3">
+                      <QRCodeCanvas id={`qr-${table.id}`} value={table.qr} size={112} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">{lang === 'vi' ? 'Link QR' : 'QR link'}</p>
+                      <div className="mt-2 break-all text-xs text-zinc-400">{table.qr}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => printTableQr(table)}
+                      className="rounded-2xl bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+                    >
+                      {lang === 'vi' ? 'In QR' : 'Print'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadTablePng(table)}
+                      className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+                    >
+                      {lang === 'vi' ? 'Tải PNG' : 'PNG'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteTable(table.id)}
+                      className="rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
+                    >
+                      {lang === 'vi' ? 'Xóa' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {tables.length === 0 && (
+              <div className="md:col-span-2 rounded-3xl border border-dashed border-zinc-700 bg-zinc-900/50 p-12 text-center text-zinc-400">
+                {lang === 'vi' ? 'Chưa có bàn nào được tạo QR. Hãy thêm bàn đầu tiên ở khối bên trái.' : 'No QR tables yet. Add your first table from the panel on the left.'}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const LegacyTablePanel: React.FC<{
+    lang: 'vi' | 'en';
+    isDark: boolean;
+    tables: TableInfo[];
+    saveTables: (tables: TableInfo[]) => void;
+  }> = ({ lang, isDark, tables, saveTables }) => {
     const [count, setCount] = useState(tables.length);
     const [floor, setFloor] = useState('1');
     const [origin, setOrigin] = useState('');
@@ -2146,16 +3292,44 @@ export default function AdminPage() {
     };
 
     const printTableQr = (table: TableInfo) => {
-      // Table QR printing removed
-    };
-
-    const handlePrintNow = () => {
       if (typeof window === 'undefined') return;
-      window.print();
-    };
+      const canvas = document.getElementById(`qr-${table.id}`) as HTMLCanvasElement | null;
+      const dataUrl = canvas?.toDataURL('image/png');
+      const printWindow = window.open('', '_blank', 'width=720,height=960');
+      if (!printWindow || !dataUrl) return;
 
-    const closeQrModal = () => {
-      // Modal closed
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>QR Table ${table.table}</title>
+            <style>
+              body { margin: 0; font-family: Arial, sans-serif; background: #111827; color: #ffffff; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+              .sheet { width: 360px; padding: 32px; border-radius: 28px; background: #18181b; border: 1px solid #3f3f46; text-align: center; }
+              .badge { display: inline-block; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(249,115,22,0.35); color: #fdba74; margin-bottom: 20px; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; font-weight: 700; }
+              img { width: 220px; height: 220px; border-radius: 24px; background: white; padding: 16px; }
+              .title { font-size: 34px; font-weight: 800; margin: 0; }
+              .subtitle { margin: 10px 0 24px; font-size: 16px; color: #d4d4d8; }
+              .url { margin-top: 18px; font-size: 12px; color: #a1a1aa; word-break: break-all; }
+            </style>
+          </head>
+          <body>
+            <div class="sheet">
+              <div class="badge">HCH RESTO QR</div>
+              <h1 class="title">Bàn ${table.table}</h1>
+              <p class="subtitle">Tầng ${table.floor}</p>
+              <img src="${dataUrl}" alt="QR Table ${table.table}" />
+              <p class="url">${table.qr}</p>
+            </div>
+            <script>
+              window.onload = function () {
+                window.print();
+                window.onafterprint = function () { window.close(); };
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     };
 
     return (
@@ -2440,11 +3614,12 @@ const AccountsPanel: React.FC<{
     currentUserId: string;
     refreshAccounts: () => Promise<void>;
   }> = ({ accounts, currentUserId, refreshAccounts }) => {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+    const [staffUsername, setStaffUsername] = useState('');
+    const [staffPassword, setStaffPassword] = useState('');
+    const [staffName, setStaffName] = useState('');
+    const [adminEmail, setAdminEmail] = useState('');
+    const [adminPhone, setAdminPhone] = useState('');
+    const [adminTwoFactorEnabled, setAdminTwoFactorEnabled] = useState(false);
     const [adminPassword, setAdminPassword] = useState('');
     const [msg, setMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
     const [isSavingSecurity, setIsSavingSecurity] = useState(false);
@@ -2457,8 +3632,9 @@ const AccountsPanel: React.FC<{
 
     useEffect(() => {
       if (currentAdmin) {
-        setEmail(currentAdmin.email || '');
-        setTwoFactorEnabled(Boolean(currentAdmin.twoFactorEnabled));
+        setAdminEmail(currentAdmin.email || '');
+        setAdminPhone(currentAdmin.phone || '');
+        setAdminTwoFactorEnabled(Boolean(currentAdmin.twoFactorEnabled));
       }
     }, [currentAdmin]);
 
@@ -2470,7 +3646,7 @@ const AccountsPanel: React.FC<{
       e.preventDefault();
       setMsg(null);
 
-      if (!username.trim() || !password.trim() || !name.trim()) {
+      if (!staffUsername.trim() || !staffPassword.trim() || !staffName.trim()) {
         showMessage('error', lang === 'vi' ? 'Vui lòng nhập đầy đủ tên đăng nhập, mật khẩu và tên hiển thị.' : 'Please complete username, password and display name.');
         return;
       }
@@ -2481,10 +3657,11 @@ const AccountsPanel: React.FC<{
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            username: username.trim(),
-            password: password.trim(),
-            name: name.trim(),
+            username: staffUsername.trim(),
+            password: staffPassword.trim(),
+            name: staffName.trim(),
             email: '',
+            phone: '',
             twoFactorEnabled: false,
             role: 'staff',
           }),
@@ -2497,9 +3674,9 @@ const AccountsPanel: React.FC<{
         }
 
         await refreshAccounts();
-        setUsername('');
-        setPassword('');
-        setName('');
+        setStaffUsername('');
+        setStaffPassword('');
+        setStaffName('');
         showMessage('success', lang === 'vi' ? 'Đã thêm tài khoản nhân viên mới.' : 'Staff account created successfully.');
       } finally {
         setIsCreatingAccount(false);
@@ -2529,8 +3706,9 @@ const AccountsPanel: React.FC<{
       e.preventDefault();
       if (!currentAdmin) return;
 
-      const trimmedEmail = email.trim();
-      if (twoFactorEnabled && !trimmedEmail) {
+      const trimmedEmail = adminEmail.trim();
+      const trimmedPhone = adminPhone.trim();
+      if (adminTwoFactorEnabled && !trimmedEmail) {
         showMessage('error', lang === 'vi' ? 'Cần nhập email admin trước khi bật xác thực 2 lớp.' : 'Admin email is required before enabling 2FA.');
         return;
       }
@@ -2544,7 +3722,8 @@ const AccountsPanel: React.FC<{
           body: JSON.stringify({
             id: currentAdmin.id,
             email: trimmedEmail,
-            twoFactorEnabled,
+            phone: trimmedPhone,
+            twoFactorEnabled: adminTwoFactorEnabled,
             password: adminPassword.trim() || undefined,
           }),
         });
@@ -2559,7 +3738,7 @@ const AccountsPanel: React.FC<{
         setAdminPassword('');
         showMessage(
           'success',
-          twoFactorEnabled
+          adminTwoFactorEnabled
             ? (lang === 'vi' ? 'Đã lưu email admin và bật xác thực 2 lớp.' : 'Admin email saved and 2FA enabled.')
             : (lang === 'vi' ? 'Đã cập nhật cấu hình tài khoản admin.' : 'Admin account settings updated.')
         );
@@ -2646,27 +3825,38 @@ const AccountsPanel: React.FC<{
                 <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'Bảo mật tài khoản admin' : 'Admin security'}</h3>
                 <p className="mt-1 text-sm text-zinc-400">
                   {lang === 'vi'
-                    ? 'Email này sẽ nhận mã OTP khi đăng nhập vào trang quản trị.'
-                    : 'This email receives the OTP code when signing in to admin.'}
+                    ? 'Lưu email OTP, số điện thoại chủ và lớp bảo mật đăng nhập cho tài khoản admin.'
+                    : 'Manage the OTP email, owner phone number, and login protection for the admin account.'}
                 </p>
               </div>
-              <div className={`rounded-full px-3 py-1 text-xs font-semibold ${twoFactorEnabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-zinc-800 text-zinc-300'}`}>
-                {twoFactorEnabled ? '2FA ON' : '2FA OFF'}
+              <div className={`rounded-full px-3 py-1 text-xs font-semibold ${adminTwoFactorEnabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-zinc-800 text-zinc-300'}`}>
+                {adminTwoFactorEnabled ? '2FA ON' : '2FA OFF'}
               </div>
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Tên đăng nhập admin' : 'Admin username'}</label>
-                <input value={currentAdmin?.username || ''} readOnly className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-zinc-400 outline-none" />
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'Tài khoản admin' : 'Admin account'}</p>
+                <p className="mt-2 text-base font-semibold text-white">{currentAdmin?.username || 'admin'}</p>
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-zinc-200">Email OTP</label>
                 <input
                   type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  value={adminEmail}
+                  onChange={e => setAdminEmail(e.target.value)}
+                  autoComplete="off"
                   placeholder="admin@gmail.com"
+                  className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Số điện thoại chủ' : 'Owner phone'}</label>
+                <input
+                  value={adminPhone}
+                  onChange={e => setAdminPhone(e.target.value.replace(/[^\d+\s]/g, ''))}
+                  autoComplete="off"
+                  placeholder={lang === 'vi' ? 'Nhập số điện thoại chủ' : 'Enter owner phone'}
                   className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
                 />
               </div>
@@ -2679,6 +3869,7 @@ const AccountsPanel: React.FC<{
                   type="password"
                   value={adminPassword}
                   onChange={e => setAdminPassword(e.target.value)}
+                  autoComplete="new-password"
                   placeholder={lang === 'vi' ? 'Để trống nếu không đổi mật khẩu' : 'Leave blank to keep current password'}
                   className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
                 />
@@ -2696,14 +3887,14 @@ const AccountsPanel: React.FC<{
               </div>
               <button
                 type="button"
-                onClick={() => setTwoFactorEnabled(prev => !prev)}
+                onClick={() => setAdminTwoFactorEnabled(prev => !prev)}
                 className={`inline-flex min-w-[120px] items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  twoFactorEnabled
+                  adminTwoFactorEnabled
                     ? 'bg-emerald-500 text-white shadow-[0_10px_30px_rgba(16,185,129,0.25)]'
                     : 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700'
                 }`}
               >
-                {twoFactorEnabled ? (lang === 'vi' ? 'Đang bật' : 'Enabled') : (lang === 'vi' ? 'Bật 2FA' : 'Enable 2FA')}
+                {adminTwoFactorEnabled ? (lang === 'vi' ? 'Đang bật' : 'Enabled') : (lang === 'vi' ? 'Bật 2FA' : 'Enable 2FA')}
               </button>
             </div>
 
@@ -2718,7 +3909,7 @@ const AccountsPanel: React.FC<{
               <button
                 type="button"
                 onClick={sendTestOtpEmail}
-                disabled={isSendingOtpTest || !email.trim()}
+                disabled={isSendingOtpTest || !adminEmail.trim()}
                 className="rounded-2xl border border-blue-500/30 bg-blue-500/10 px-5 py-3 font-semibold text-blue-300 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSendingOtpTest ? (lang === 'vi' ? 'Đang gửi...' : 'Sending...') : (lang === 'vi' ? 'Gửi thử email OTP' : 'Send test OTP email')}
@@ -2737,15 +3928,15 @@ const AccountsPanel: React.FC<{
             <div className="mt-6 space-y-4">
               <div>
                 <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Tên đăng nhập' : 'Username'}</label>
-                <input value={username} onChange={e => setUsername(e.target.value)} className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
+                <input value={staffUsername} onChange={e => setStaffUsername(e.target.value)} autoComplete="off" name="staff_username_new" placeholder={lang === 'vi' ? 'Ví dụ: order-ca-2' : 'Example: order-shift-2'} className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Mật khẩu' : 'Password'}</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
+                <input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} autoComplete="new-password" name="staff_password_new" className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Tên hiển thị' : 'Display name'}</label>
-                <input value={name} onChange={e => setName(e.target.value)} className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
+                <input value={staffName} onChange={e => setStaffName(e.target.value)} autoComplete="off" name="staff_display_name" className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
               </div>
             </div>
 
@@ -2765,8 +3956,8 @@ const AccountsPanel: React.FC<{
               <h3 className="text-lg font-bold text-white">{lang === 'vi' ? 'Danh sách tài khoản' : 'Account list'}</h3>
               <p className="mt-1 text-sm text-zinc-400">
                 {lang === 'vi'
-                  ? 'Theo dõi nhanh quyền, email và trạng thái bảo mật của từng tài khoản.'
-                  : 'Quickly review roles, emails and security status for each account.'}
+                  ? 'Theo dõi nhanh vai trò, email, số điện thoại và trạng thái bảo mật của từng tài khoản.'
+                  : 'Quickly review roles, emails, phone numbers, and security status for each account.'}
               </p>
             </div>
             <span className="rounded-full border border-zinc-700 bg-zinc-950 px-3 py-1 text-xs font-semibold text-zinc-300">
@@ -2780,6 +3971,7 @@ const AccountsPanel: React.FC<{
                 <tr>
                   <th className="px-6 py-4 text-left font-medium">{lang === 'vi' ? 'Tài khoản' : 'Account'}</th>
                   <th className="px-6 py-4 text-left font-medium">Email</th>
+                  <th className="px-6 py-4 text-left font-medium">{lang === 'vi' ? 'SĐT' : 'Phone'}</th>
                   <th className="px-6 py-4 text-left font-medium">{lang === 'vi' ? 'Vai trò' : 'Role'}</th>
                   <th className="px-6 py-4 text-left font-medium">2FA</th>
                   <th className="px-6 py-4 text-right font-medium">{lang === 'vi' ? 'Thao tác' : 'Actions'}</th>
@@ -2795,6 +3987,7 @@ const AccountsPanel: React.FC<{
                       </div>
                     </td>
                     <td className="px-6 py-4 text-zinc-300">{acc.email || '--'}</td>
+                    <td className="px-6 py-4 text-zinc-300">{acc.phone || '--'}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${acc.role === 'admin' ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
                         {acc.role === 'admin' ? 'Admin' : (lang === 'vi' ? 'Nhân viên' : 'Staff')}
@@ -2823,7 +4016,7 @@ const AccountsPanel: React.FC<{
                 ))}
                 {accounts.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-zinc-500">
+                    <td colSpan={6} className="px-6 py-12 text-center text-zinc-500">
                       {lang === 'vi' ? 'Chưa có tài khoản nào trong hệ thống.' : 'No accounts found.'}
                     </td>
                   </tr>
@@ -2871,6 +4064,7 @@ const AccountsPanel: React.FC<{
       case 'inventory': return <InventoryManagementPanel lang={lang} menuItems={menuItems} stock={inventoryStock} setStock={setInventoryStock} drafts={inventoryDrafts} setDrafts={setInventoryDrafts} />;
       case 'coupons': return <CouponsPanel lang={lang} isDark={isDark} />;
       case 'reports': return <OverviewPanel orders={orders} />;
+      case 'tables': return <TableQrPanel lang={lang} isDark={isDark} tables={tables} saveTables={saveTables} />;
       case 'accounts': return <AccountsPanelPro accounts={accounts} currentUserId={currentUserId} refreshAccounts={fetchAccounts} />;
     }
   };
@@ -3054,6 +4248,7 @@ const AccountsPanel: React.FC<{
           { id: 'categories' as Panel, icon: <Tags size={20} />, label: t[lang].categories },
           { id: 'orders' as Panel, icon: <ShoppingCart size={20} />, label: t[lang].orders, badge: true },
           { id: 'customers' as Panel, icon: <Users size={20} />, label: t[lang].customers },
+          { id: 'tables' as Panel, icon: <QrCode size={20} />, label: lang === 'vi' ? 'QR bàn ăn' : 'Table QR' },
           { id: 'inventory' as Panel, icon: <Boxes size={20} />, label: t[lang].inventory },
           { id: 'coupons' as Panel, icon: <Percent size={20} />, label: t[lang].coupons },
           { id: 'reports' as Panel, icon: <BarChart3 size={20} />, label: t[lang].reports },

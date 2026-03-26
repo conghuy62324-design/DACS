@@ -16,6 +16,7 @@ export async function POST(request: Request) {
   const password = String(data.password || '').trim();
   const name = String(data.name || '').trim();
   const email = String(data.email || '').trim();
+  const phone = String(data.phone || '').trim();
   const role: Role = data.role === 'admin' ? 'admin' : 'staff';
   const twoFactorEnabled = Boolean(data.twoFactorEnabled && email);
 
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
       password,
       name,
       email,
+      phone,
       role,
       twoFactorEnabled,
     });
@@ -60,6 +62,7 @@ export async function PATCH(request: Request) {
     username?: string;
     name?: string;
     email?: string;
+    phone?: string;
     role?: Role;
     twoFactorEnabled?: boolean;
     password?: string;
@@ -76,6 +79,10 @@ export async function PATCH(request: Request) {
   if (data.email !== undefined) {
     fields.push('email');
     updates.email = String(data.email || '').trim();
+  }
+  if (data.phone !== undefined) {
+    fields.push('phone');
+    updates.phone = String(data.phone || '').trim();
   }
   if (data.role !== undefined) {
     fields.push('role');

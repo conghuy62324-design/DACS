@@ -34,8 +34,8 @@ export function getPool() {
 }
 
 async function seedAccounts(pool: Pool) {
-  const jsonAccounts = readData<Array<{ id: string; username: string; password: string; name: string; role: string }>>('accounts.json', [
-    { id: 'a1', username: 'admin', password: 'admin', name: 'Administrator', role: 'admin' },
+  const jsonAccounts = readData<Array<{ id: string; username: string; password: string; name: string; role: string; phone?: string }>>('accounts.json', [
+    { id: 'a1', username: 'admin', password: 'admin', name: 'Administrator', role: 'admin', phone: '' },
   ]);
 
   for (const account of jsonAccounts) {
@@ -46,9 +46,9 @@ async function seedAccounts(pool: Pool) {
 
     const passwordHash = await bcrypt.hash(account.password || 'admin', 10);
     await pool.execute(
-      `INSERT INTO accounts (id, username, password_hash, name, role, email, two_factor_enabled)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [account.id, account.username, passwordHash, account.name, account.role === 'admin' ? 'admin' : 'staff', '', 0]
+      `INSERT INTO accounts (id, username, password_hash, name, role, email, phone, two_factor_enabled)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [account.id, account.username, passwordHash, account.name, account.role === 'admin' ? 'admin' : 'staff', '', account.phone || '', 0]
     );
   }
 }
@@ -175,10 +175,20 @@ export async function initializeDatabase() {
             name VARCHAR(150) NOT NULL,
             role VARCHAR(20) NOT NULL DEFAULT 'staff',
             email VARCHAR(255) NOT NULL DEFAULT '',
+            phone VARCHAR(30) NOT NULL DEFAULT '',
             two_factor_enabled TINYINT(1) NOT NULL DEFAULT 0,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
+
+        const [accountColumns] = await pool.query('SHOW COLUMNS FROM accounts');
+        const accountColumnSet = new Set((accountColumns as Array<{ Field: string }>).map(column => column.Field));
+        if (!accountColumnSet.has('phone')) {
+          await pool.query(`
+            ALTER TABLE accounts
+            ADD COLUMN phone VARCHAR(30) NOT NULL DEFAULT ''
+          `);
+        }
 
         await pool.query(`
           CREATE TABLE IF NOT EXISTS auth_otps (
