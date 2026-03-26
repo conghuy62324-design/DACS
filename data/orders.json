@@ -1,0 +1,98 @@
+[
+  {
+    "id": "o1774236063029",
+    "table": "",
+    "floor": "",
+    "customer": "",
+    "items": [
+      {
+        "id": "m3",
+        "qty": 1
+      },
+      {
+        "id": "m4",
+        "qty": 1
+      }
+    ],
+    "total": 175000,
+    "status": "Đã thanh toán",
+    "handler": "",
+    "createdAt": "2026-03-23T03:21:03.029Z"
+  },
+  {
+    "id": "o1774236050580",
+    "table": "",
+    "floor": "",
+    "customer": "",
+    "items": [
+      {
+        "id": "m1",
+        "qty": 1
+      },
+      {
+        "id": "m3",
+        "qty": 1
+      }
+    ],
+    "total": 164000,
+    "status": "Đã thanh toán",
+    "handler": "",
+    "createdAt": "2026-03-23T03:20:50.580Z"
+  },
+  {
+    "id": "o1774234926299",
+    "table": "",
+    "floor": "",
+    "customer": "",
+    "items": [
+      {
+        "id": "m1",
+        "qty": 2
+      }
+    ],
+    "total": 178000,
+    "status": "Đã thanh toán",
+    "handler": "",
+    "createdAt": "2026-03-23T03:02:06.299Z"
+  },
+  {
+    "id": "o1773539158902",
+    "table": "",
+    "floor": "",
+    "customer": "",
+    "items": [
+      {
+        "id": "m2",
+        "qty": 1
+      },
+      {
+        "id": "m4",
+        "qty": 1
+      }
+    ],
+    "total": 259000,
+    "status": "Đã thanh toán",
+    "handler": "",
+    "createdAt": "2026-03-15T01:45:58.902Z"
+  },
+  {
+    "id": "o1773506110312",
+    "table": "",
+    "floor": "",
+    "customer": "",
+    "items": [
+      {
+        "id": "m2",
+        "qty": 1
+      },
+      {
+        "id": "m1",
+        "qty": 1
+      }
+    ],
+    "total": 248000,
+    "status": "Đã thanh toán",
+    "handler": "",
+    "createdAt": "2026-03-14T16:35:10.312Z"
+  }
+]

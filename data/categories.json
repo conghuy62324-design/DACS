@@ -1,0 +1,22 @@
+[
+  {
+    "id": "cat-main",
+    "name": "Món chính",
+    "icon": "🍽️"
+  },
+  {
+    "id": "cat-side",
+    "name": "Món phụ",
+    "icon": "🍟"
+  },
+  {
+    "id": "cat-drink",
+    "name": "Đồ uống",
+    "icon": "🥤"
+  },
+  {
+    "id": "cat-dessert",
+    "name": "Tráng miệng",
+    "icon": "🍰"
+  }
+]
