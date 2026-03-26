@@ -1,36 +1,182 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HCH Restaurant
 
-## Getting Started
+HCH Restaurant la he thong menu QR + trang admin quan ly nha hang duoc xay dung bang Next.js.
 
-First, run the development server:
+Project hien co cac khu vuc chinh:
+
+- `app/page.tsx`: giao dien menu cho khach hang
+- `app/admin/page.tsx`: trang quan tri san pham, danh muc, don hang, tai khoan
+- `app/kitchen/page.tsx`: giao dien bep
+- `app/api/*`: cac API cho auth, menu, categories, orders, accounts
+- `data/*`: du lieu JSON seed/fallback
+- `lib/*`: auth, mailer, MySQL, dong bo catalog, admin store
+
+## Tinh nang chinh
+
+- Dang nhap admin va OTP 2FA
+- Quan ly san pham va danh muc
+- Menu cho khach quet QR
+- Tao va theo doi don hang
+- Giao dien bep de xem va xu ly mon
+- Luu tru MySQL va tu dong tuong thich voi mot so schema cu
+
+## Cong nghe su dung
+
+- Next.js 16
+- React 19
+- TypeScript
+- MySQL (`mysql2`)
+- JWT (`jsonwebtoken`)
+- Nodemailer
+- Chart.js
+
+## Yeu cau moi truong
+
+Can cai san:
+
+- Node.js 20+
+- npm
+- MySQL / XAMPP MySQL
+- Git
+
+## Cai dat project
+
+Tai thu muc project, chay:
+
+```bash
+npm install
+```
+
+## Cau hinh env
+
+Tao file `.env.local` dua tren `.env.example` va dien cac gia tri can thiet.
+
+Vi du:
+
+```env
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=hch_restaurant
+
+JWT_SECRET=change-this-to-a-long-random-secret-key
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-gmail@gmail.com
+SMTP_PASS=your-16-char-gmail-app-password
+SMTP_FROM=your-gmail@gmail.com
+```
+
+Luu y:
+
+- `.env.local` dang duoc ignore, se khong bi day len GitHub
+- Neu bat 2FA cho admin thi can cau hinh `SMTP_PASS` bang Gmail App Password that
+
+## Chay project
+
+Chay development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sau do mo:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Menu khach hang: `http://localhost:3000`
+- Admin: `http://localhost:3000/admin`
+- Kitchen: `http://localhost:3000/kitchen`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Lenh huu ich
 
-## Learn More
+```bash
+npm run dev
+npm run build
+npm run start
+npm run lint
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Ghi chu du lieu
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `menu_items`, `categories`, `orders`, `accounts` dang doc/ghi tu MySQL
+- `data/*.json` duoc dung lam seed/fallback cho mot so truong hop
+- App da duoc cap nhat de dong bo lai danh muc tu `menu_items` khi can
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Day code len GitHub lan dau
 
-## Deploy on Vercel
+Project da duoc noi voi repo:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+https://github.com/conghuy62324-design/DACS.git
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Workflow cap nhat GitHub ve sau
+
+Mình da them 2 script de ban chi can chay 2 lenh:
+
+### 1. Tao commit moi
+
+```bash
+npm run git:save -- "cap nhat noi dung"
+```
+
+Vi du:
+
+```bash
+npm run git:save -- "fix admin va dong bo orders"
+```
+
+### 2. Day len GitHub
+
+```bash
+npm run git:publish
+```
+
+## Script Git da them
+
+- `scripts/git-save.ps1`: add + commit tat ca thay doi
+- `scripts/git-publish.ps1`: push len nhanh `main`
+
+## Neu muon update moi nhat trong tuong lai
+
+Moi lan sua code xong, chi can:
+
+```bash
+npm run git:save -- "mo ta thay doi"
+npm run git:publish
+```
+
+## Luu y an toan khi push
+
+Khong day len GitHub:
+
+- `.env.local`
+- `node_modules`
+- `.next`
+
+Da duoc cau hinh trong [`.gitignore`](c:/Users/PC/hch-restaurant/.gitignore).
+
+## Cau truc thu muc
+
+```text
+app/
+  admin/
+  api/
+  kitchen/
+  pay/
+  qr/
+data/
+lib/
+public/
+scripts/
+```
+
+## Gop y
+
+Neu ban muon, co the bo sung tiep:
+
+- README co hinh anh giao dien
+- file huong dan deploy len Vercel / VPS
+- script backup database MySQL

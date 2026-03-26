@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "git:save": "powershell -ExecutionPolicy Bypass -File scripts/git-save.ps1",
+    "git:publish": "powershell -ExecutionPolicy Bypass -File scripts/git-publish.ps1"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
