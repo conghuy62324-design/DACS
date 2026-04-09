@@ -1,11 +1,14 @@
 "use client"
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Image from 'next/image';
+import { QRCodeCanvas } from 'qrcode.react';
+import { isClosedOrderStatus, normalizeSeatValue, readPaymentMethodsFromStorage, type PaymentMethod } from '@/lib/payment-client';
 import {
   Utensils,
   Plus,
   Minus,
   Trash2,
+  CreditCard,
   Sun,
   Moon
 } from 'lucide-react';
@@ -40,6 +43,32 @@ interface InventoryEntry {
   incoming: number;
 }
 
+interface OrderItem {
+  id: string;
+  qty: number;
+}
+
+interface OrderType {
+  id: string;
+  table: string;
+  floor: string;
+  customer: string;
+  items: OrderItem[];
+  total: number;
+  status: string;
+  handler: string;
+  createdAt: string;
+}
+
+const normalizeOrderWorkflowStatus = (value?: string) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+
 const isImageLikeCategoryIcon = (value?: string) => {
   if (!value) return false;
   return value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:image/') || value.startsWith('/');
@@ -67,13 +96,17 @@ export default function RestaurantMenu() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [inventoryStock, setInventoryStock] = useState<Record<string, InventoryEntry>>({});
+  const [orders, setOrders] = useState<OrderType[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
 
   const [cart, setCart] = useState<Record<string, number>>({});
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
   const [isLoading, setIsLoading] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState('');
+  const [placedOrderIds, setPlacedOrderIds] = useState<string[]>([]);
 
   const [tableInfo, setTableInfo] = useState<TableInfo | null>(null);
   const [customerName, setCustomerName] = useState('');
@@ -114,6 +147,20 @@ export default function RestaurantMenu() {
   }, []);
 
   useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('placedOrderIds');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setPlacedOrderIds(parsed.map(value => String(value)));
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
     setInventoryStock(readInventoryStock());
 
     const syncInventory = () => setInventoryStock(readInventoryStock());
@@ -122,6 +169,21 @@ export default function RestaurantMenu() {
 
     return () => {
       window.removeEventListener('storage', syncInventory);
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncPaymentMethods = () => {
+      setPaymentMethods(readPaymentMethodsFromStorage().filter(method => method.active));
+    };
+
+    syncPaymentMethods();
+    window.addEventListener('storage', syncPaymentMethods);
+    const interval = window.setInterval(syncPaymentMethods, 2000);
+
+    return () => {
+      window.removeEventListener('storage', syncPaymentMethods);
       window.clearInterval(interval);
     };
   }, []);
@@ -139,14 +201,17 @@ export default function RestaurantMenu() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [menuRes, categoriesRes] = await Promise.all([
+        const [menuRes, categoriesRes, ordersRes] = await Promise.all([
           fetch('/api/menu'),
-          fetch('/api/categories')
+          fetch('/api/categories'),
+          fetch('/api/orders')
         ]);
         const menuData: MenuItem[] = await menuRes.json();
         const categoriesData: Category[] = await categoriesRes.json();
+        const ordersData: OrderType[] = await ordersRes.json();
         setMenuItems(menuData);
         setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+        setOrders(Array.isArray(ordersData) ? ordersData : []);
       } catch (e) {
         console.error(e);
       }
@@ -207,6 +272,14 @@ export default function RestaurantMenu() {
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('placedOrderIds', JSON.stringify(placedOrderIds));
+    } catch {
+      // ignore
+    }
+  }, [placedOrderIds]);
 
   const getAvailableStock = useCallback((id: string) => {
     return getInventoryQuantity(inventoryStock[id]);
@@ -292,10 +365,103 @@ export default function RestaurantMenu() {
     !categories.some(category => category.id === item.categoryId || category.name === item.categoryName)
   );
 
-  const navSections = [
+  const navSections = useMemo(() => [
     ...menuSections,
     ...(uncategorizedItems.length > 0 ? [{ id: 'uncategorized', name: lang === 'vi' ? 'Chưa phân loại' : 'Uncategorized', icon: '📁' }] : []),
-  ];
+  ], [lang, menuSections, uncategorizedItems.length]);
+
+  const sessionOpenOrders = orders.filter(order =>
+    placedOrderIds.includes(order.id) && !isClosedOrderStatus(order.status)
+  );
+
+  const tableOpenOrders = tableInfo
+    ? orders.filter(order =>
+        normalizeSeatValue(order.table) === normalizeSeatValue(tableInfo.table) &&
+        normalizeSeatValue(order.floor) === normalizeSeatValue(tableInfo.floor) &&
+        !isClosedOrderStatus(order.status)
+      )
+    : sessionOpenOrders;
+
+  const visibleKitchenOrders = tableOpenOrders.filter(order => {
+    const normalized = normalizeOrderWorkflowStatus(order.status);
+    return !normalized.includes('nau xong') && !normalized.includes('cooked') && !normalized.includes('phuc vu') && !normalized.includes('served');
+  });
+
+  const groupedKitchenItems = useMemo(() => {
+    const grouped = new Map<string, { id: string; qty: number; total: number; statuses: string[] }>();
+
+    visibleKitchenOrders.forEach(order => {
+      order.items.forEach(item => {
+        const menuItem = menuItems.find(menu => menu.id === item.id);
+        const qty = Number(item.qty || 0);
+        const price = Number(menuItem?.price || 0);
+        const current = grouped.get(item.id);
+
+        if (current) {
+          current.qty += qty;
+          current.total += price * qty;
+          if (order.status && !current.statuses.includes(order.status)) {
+            current.statuses.push(order.status);
+          }
+          return;
+        }
+
+        grouped.set(item.id, {
+          id: item.id,
+          qty,
+          total: price * qty,
+          statuses: order.status ? [order.status] : [],
+        });
+      });
+    });
+
+    return Array.from(grouped.values());
+  }, [menuItems, visibleKitchenOrders]);
+
+  const existingOrderItemsCount = visibleKitchenOrders.reduce(
+    (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + Number(item.qty || 0), 0),
+    0
+  );
+
+  const displayOrderItemsCount = totalItems + existingOrderItemsCount;
+  const existingOrdersTotal = visibleKitchenOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const displayGrandTotal = totalPrice + existingOrdersTotal;
+  const featuredPaymentMethod = paymentMethods[0] || null;
+  const latestOpenOrder = tableOpenOrders[tableOpenOrders.length - 1] || null;
+
+  const canPayNow = tableOpenOrders.length > 0 || totalItems > 0;
+
+  const handlePayNow = async () => {
+    if (!featuredPaymentMethod && false) {
+      showToast(lang === 'vi' ? 'ChÆ°a cÃ i Ä‘áº·t QR thanh toÃ¡n' : 'Payment QR is not configured', 'error');
+      return;
+    }
+
+    if (totalItems > 0) {
+      const createdOrder = await placeOrder();
+      if (createdOrder) {
+        if (featuredPaymentMethod) {
+          setPaymentModalOpen(true);
+        } else {
+          openPaymentPage(createdOrder.id);
+        }
+      }
+      return;
+    }
+
+    if (tableOpenOrders.length > 0) {
+      if (featuredPaymentMethod) {
+        setPaymentModalOpen(true);
+      } else if (latestOpenOrder) {
+        openPaymentPage(latestOpenOrder.id);
+      }
+      return;
+    }
+  };
+
+  const openPaymentPage = (orderId: string) => {
+    window.open(`/pay/${orderId}`, '_blank', 'noopener,noreferrer');
+  };
 
   useEffect(() => {
     if (!navSections.length) {
@@ -452,7 +618,7 @@ export default function RestaurantMenu() {
   };
 
   const placeOrder = async () => {
-    if (totalItems === 0) return;
+    if (totalItems === 0) return null;
     setIsLoading(true);
     try {
       const payload = { cart, totalPrice, lang, customerName, customerPhone, table: tableInfo?.table, floor: tableInfo?.floor };
@@ -462,6 +628,11 @@ export default function RestaurantMenu() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data?.order) {
+          setOrders(prev => [data.order, ...prev.filter(order => order.id !== data.order.id)]);
+          setPlacedOrderIds(prev => [data.order.id, ...prev.filter(id => id !== data.order.id)]);
+        }
         setCart({});
         localStorage.removeItem('cart');
         showToast(lang === 'vi' ? 'Đặt món thành công' : 'Order placed');
@@ -477,14 +648,17 @@ export default function RestaurantMenu() {
           });
           saveTables(next);
         }
+        return data?.order ?? null;
       } else {
         throw new Error('bad');
       }
     } catch (e) {
       console.error(e);
       showToast(lang === 'vi' ? 'Lỗi đặt món' : 'Order failed', 'error');
+      return null;
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   // Bộ từ điển dịch thuật
@@ -513,7 +687,7 @@ export default function RestaurantMenu() {
 
 
   return (
-    <div className={`min-h-screen transition-all duration-300 scroll-smooth ${isDark ? 'bg-[radial-gradient(circle_at_top_left,_rgba(249,115,22,0.12),_transparent_30%),linear-gradient(180deg,#09090b_0%,#111114_100%)] text-white' : 'bg-[radial-gradient(circle_at_top_left,_rgba(249,115,22,0.10),_transparent_30%),linear-gradient(180deg,#fff7ed_0%,#ffffff_100%)] text-zinc-900'}`} style={{ paddingBottom: totalItems>0 ? '4rem' : undefined }}>
+    <div className={`min-h-screen transition-all duration-300 scroll-smooth ${isDark ? 'bg-[radial-gradient(circle_at_top_left,_rgba(249,115,22,0.12),_transparent_30%),linear-gradient(180deg,#09090b_0%,#111114_100%)] text-white' : 'bg-[radial-gradient(circle_at_top_left,_rgba(249,115,22,0.10),_transparent_30%),linear-gradient(180deg,#fff7ed_0%,#ffffff_100%)] text-zinc-900'}`} style={{ paddingBottom: displayOrderItemsCount > 0 ? '4rem' : undefined }}>
       <div className="max-w-7xl mx-auto p-4 lg:p-10 flex flex-col lg:flex-row gap-10 font-sans">
         {toastMsg && (
           <div className={`fixed bottom-5 right-5 z-50 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl backdrop-blur-xl animate-fade-in-out ${
@@ -525,26 +699,138 @@ export default function RestaurantMenu() {
           </div>
         )}
 
+        {paymentModalOpen && featuredPaymentMethod && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+            <div className={`w-full max-w-md rounded-[2rem] border p-6 shadow-2xl ${isDark ? 'border-white/10 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-900'}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-400">
+                    {lang === 'vi' ? 'Thanh toán ngay' : 'Pay now'}
+                  </p>
+                  <h3 className="mt-2 text-2xl font-black">{featuredPaymentMethod.bankName || featuredPaymentMethod.providerName || featuredPaymentMethod.name}</h3>
+                  <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                    {lang === 'vi' ? 'Quét mã QR hoặc chuyển khoản theo thông tin bên dưới.' : 'Scan the QR or transfer using the details below.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPaymentModalOpen(false)}
+                  className={`rounded-2xl px-3 py-2 text-sm font-bold ${isDark ? 'bg-white/5 text-zinc-300 hover:bg-white/10' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'}`}
+                >
+                  {lang === 'vi' ? 'Đóng' : 'Close'}
+                </button>
+              </div>
+
+              <div className="mt-6 flex justify-center">
+                <div className="flex aspect-square w-full max-w-[260px] items-center justify-center rounded-[2rem] bg-white p-4 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+                  {featuredPaymentMethod.qrImage ? (
+                    <Image
+                      src={featuredPaymentMethod.qrImage}
+                      alt={featuredPaymentMethod.name || 'QR'}
+                      width={220}
+                      height={220}
+                      unoptimized
+                      className="h-full w-full rounded-[1.5rem] object-cover"
+                    />
+                  ) : featuredPaymentMethod.qrContent ? (
+                    <QRCodeCanvas value={featuredPaymentMethod.qrContent} size={220} includeMargin />
+                  ) : (
+                    <div className="text-center text-sm text-zinc-500">{lang === 'vi' ? 'Chưa có mã QR' : 'No QR available'}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                <div className={`rounded-[1.4rem] border p-4 ${isDark ? 'border-white/10 bg-white/5' : 'border-zinc-200 bg-zinc-50'}`}>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-zinc-500">{lang === 'vi' ? 'Số tài khoản' : 'Account number'}</p>
+                  <p className="mt-2 break-all text-base font-black">{featuredPaymentMethod.accountNumber || '--'}</p>
+                </div>
+                <div className={`rounded-[1.4rem] border p-4 ${isDark ? 'border-white/10 bg-white/5' : 'border-zinc-200 bg-zinc-50'}`}>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-zinc-500">{lang === 'vi' ? 'Chủ tài khoản' : 'Account holder'}</p>
+                  <p className="mt-2 text-base font-black">{featuredPaymentMethod.accountName || '--'}</p>
+                </div>
+                <div className={`rounded-[1.4rem] border p-4 ${isDark ? 'border-white/10 bg-white/5' : 'border-zinc-200 bg-zinc-50'}`}>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-zinc-500">{lang === 'vi' ? 'Tổng cần thanh toán' : 'Amount due'}</p>
+                  <p className="mt-2 text-2xl font-black text-emerald-400">{formatCurrency(displayGrandTotal)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* mobile cart editing panel */}
         {mobileCartOpen && (
           <div className="fixed bottom-16 left-0 right-0 bg-zinc-800 p-4 max-h-[50%] overflow-y-auto lg:hidden">
-            {cartEntries.map(([id, qty]) => {
-              const item = menuItems.find(m => m.id === id);
-              if (!item) return null;
-              return (
-                <div key={id} className="flex justify-between items-center mb-3">
-                  <span className="flex-1 text-sm font-medium">
-                    {lang === 'vi' ? item.nameVi : item.nameEn}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => updateQty(id, -1)} className="p-1"><Minus size={14} /></button>
-                    <span>{qty}</span>
-                    <button onClick={() => updateQty(id, 1)} className="p-1"><Plus size={14} /></button>
-                    <button onClick={() => updateQty(id, -qty)} className="p-1"><Trash2 size={14} /></button>
+            {cartEntries.length > 0 && (
+              <div className="mb-4 space-y-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-orange-400">
+                  {lang === 'vi' ? 'Món mới đang chọn' : 'New items'}
+                </p>
+                {cartEntries.map(([id, qty]) => {
+                  const item = menuItems.find(m => m.id === id);
+                  if (!item) return null;
+                  return (
+                    <div key={id} className="flex justify-between items-center mb-3">
+                      <span className="flex-1 text-sm font-medium">
+                        {lang === 'vi' ? item.nameVi : item.nameEn}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => updateQty(id, -1)} className="p-1"><Minus size={14} /></button>
+                        <span>{qty}</span>
+                        <button onClick={() => updateQty(id, 1)} className="p-1"><Plus size={14} /></button>
+                        <button onClick={() => updateQty(id, -qty)} className="p-1"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {groupedKitchenItems.length > 0 && (
+              <div className="space-y-3 border-t border-white/10 pt-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-300">
+                  {lang === 'vi' ? 'Món đã gửi bếp' : 'Sent to kitchen'}
+                </p>
+                {false && visibleKitchenOrders.map(order => (
+                  <div key={`mobile-existing-${order.id}`} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-white">#{order.id}</span>
+                      <span className="text-xs text-zinc-300">{order.status || 'Chờ xử lý'}</span>
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      {order.items.map(item => {
+                        const menuItem = menuItems.find(m => m.id === item.id);
+                        return (
+                          <div key={`mobile-${order.id}-${item.id}`} className="flex items-center justify-between text-sm">
+                            <span className="text-zinc-200">{lang === 'vi' ? (menuItem?.nameVi || item.id) : (menuItem?.nameEn || menuItem?.nameVi || item.id)}</span>
+                            <span className="font-bold text-cyan-200">x{item.qty}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                ))}
+                {groupedKitchenItems.map(item => {
+                  const menuItem = menuItems.find(m => m.id === item.id);
+                  const statusLabel = item.statuses.length === 1 ? item.statuses[0] : 'Multiple batches';
+                  return (
+                    <div key={`mobile-grouped-${item.id}`} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-white">{lang === 'vi' ? (menuItem?.nameVi || item.id) : (menuItem?.nameEn || menuItem?.nameVi || item.id)}</span>
+                        <span className="text-sm font-black text-emerald-300">{formatCurrency(item.total)}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-[11px] uppercase tracking-[0.2em] text-zinc-400">
+                        <span>{statusLabel || 'Pending'}</span>
+                        <span>Merged</span>
+                      </div>
+                      <div className="mt-3 flex items-center justify-end text-sm">
+                        <span className="font-bold text-cyan-200">x{item.qty}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <button
               className="mt-2 text-xs underline"
               onClick={() => setMobileCartOpen(false)}
@@ -555,32 +841,41 @@ export default function RestaurantMenu() {
         )}
 
         {/* mobile sticky footer */}
-        {totalItems > 0 && (
+        {displayOrderItemsCount > 0 && (
           <div className="fixed bottom-0 left-0 right-0 bg-zinc-900 text-white p-3 flex justify-between items-center lg:hidden">
             <div className="flex flex-col">
               <span className="text-xs uppercase opacity-70">
-                {ui[lang].items}: {totalItems}
+                {ui[lang].items}: {displayOrderItemsCount}
               </span>
-              <span className="font-bold">{formatCurrency(totalPrice)}</span>
+              <span className="font-bold">{totalItems > 0 ? formatCurrency(totalPrice) : (lang === 'vi' ? 'Đang có món đã gửi bếp' : 'Existing kitchen orders')}</span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setMobileCartOpen(!mobileCartOpen)}
                 className="text-xs underline"
               >
-                {lang === 'vi' ? 'Sửa' : 'Edit'}
+                {lang === 'vi' ? 'Đơn hàng' : 'Order'}
               </button>
               <button
-                onClick={placeOrder}
-                disabled={isLoading}
-                className="bg-orange-500 px-4 py-2 rounded-full font-black text-sm uppercase tracking-[0.1em] flex items-center"
+                onClick={handlePayNow}
+                disabled={!canPayNow}
+                className="bg-emerald-500 px-4 py-2 rounded-full font-black text-sm uppercase tracking-[0.1em] disabled:bg-zinc-800 disabled:text-zinc-600"
               >
-                {isLoading ? (
-                  <span className="inline-block w-4 h-4 border-2 border-white border-r-transparent rounded-full animate-spin" />
-                ) : (
-                  ui[lang].btn
-                )}
+                {lang === 'vi' ? 'Thanh toán' : 'Pay'}
               </button>
+                <button
+                  onClick={placeOrder}
+                  disabled={totalItems === 0 || isLoading}
+                  className="bg-orange-500 px-4 py-2 rounded-full font-black text-sm uppercase tracking-[0.1em] disabled:bg-zinc-800 disabled:text-zinc-600 flex items-center"
+                >
+                  {isLoading ? (
+                    <span className="inline-block h-4 w-4 rounded-full border-2 border-white border-r-transparent animate-spin" />
+                  ) : (
+                    visibleKitchenOrders.length > 0
+                      ? (lang === 'vi' ? 'Gửi món mới' : 'Send new')
+                      : ui[lang].btn
+                  )}
+                </button>
             </div>
           </div>
         )}
@@ -598,6 +893,30 @@ export default function RestaurantMenu() {
                 <p className="text-[10px] font-bold opacity-50 tracking-[0.2em] mt-3 uppercase italic">
                   {ui[lang].table}
                 </p>
+              )}
+              {false && tableOpenOrders.length > 0 && (
+                <div className={`mt-4 rounded-[1.5rem] border p-4 ${isDark ? 'border-emerald-500/20 bg-emerald-500/10' : 'border-emerald-200 bg-emerald-50'}`}>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-400">
+                        {lang === 'vi' ? 'Thanh toán tự động' : 'Payment ready'}
+                      </p>
+                      <p className="mt-2 text-sm font-semibold">
+                        {lang === 'vi'
+                          ? `Bàn này đang có ${tableOpenOrders.length} bill chưa thanh toán, tổng cần thu ${formatCurrency(tableDueTotal)}`
+                          : `${tableOpenOrders.length} unpaid bills for this table, total due ${formatCurrency(tableDueTotal)}`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openPaymentPage(tableOpenOrders[tableOpenOrders.length - 1].id)}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-cyan-400"
+                    >
+                      <CreditCard size={16} />
+                      {lang === 'vi' ? 'Thanh toán ngay' : 'Pay now'}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
             
@@ -748,31 +1067,137 @@ export default function RestaurantMenu() {
           <div className={`p-8 rounded-[3.5rem] shadow-2xl flex flex-col min-h-[600px] sticky top-10 border transition-all ${isDark ? 'bg-zinc-900 border-white/5 text-white' : 'bg-zinc-800 border-zinc-700 text-white'}`}>
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-2xl font-black italic">{ui[lang].order}<span className="text-orange-500 text-4xl">.</span></h2>
-              <div className="bg-orange-500 px-3 py-1 rounded-full text-[10px] font-black">{totalItems} {ui[lang].items}</div>
+              <div className="bg-orange-500 px-3 py-1 rounded-full text-[10px] font-black">{displayOrderItemsCount} {ui[lang].items}</div>
             </div>
 
+            {false && tableOpenOrders.length > 0 && (
+              <div className="mb-6 rounded-[2rem] border border-emerald-500/20 bg-emerald-500/10 p-5">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-300">
+                    {lang === 'vi' ? 'Mục thanh toán' : 'Payment section'}
+                  </p>
+                  <p className="mt-2 text-lg font-black text-white">{formatCurrency(tableDueTotal)}</p>
+                  <p className="mt-1 text-sm text-emerald-100/80">
+                    {lang === 'vi' ? `${tableOpenOrders.length} bill đang mở cho bàn này` : `${tableOpenOrders.length} open bills for this table`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openPaymentPage(tableOpenOrders[tableOpenOrders.length - 1].id)}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[1.2rem] bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-cyan-400"
+                >
+                  <CreditCard size={16} />
+                  {lang === 'vi' ? 'Thanh toán ngay' : 'Pay now'}
+                </button>
+                <div className="mt-4 space-y-2">
+                  {tableOpenOrders.map(order => (
+                    <button
+                      key={`pay-${order.id}`}
+                      type="button"
+                      onClick={() => openPaymentPage(order.id)}
+                      className="flex w-full items-center justify-between rounded-[1.2rem] border border-white/10 bg-black/20 px-4 py-3 text-left transition hover:bg-black/30"
+                    >
+                      <span>
+                        <span className="block text-sm font-bold text-white">#{order.id}</span>
+                        <span className="mt-1 block text-xs text-zinc-300">{order.status || 'Chờ xử lý'}</span>
+                      </span>
+                      <span className="text-sm font-black text-orange-300">{formatCurrency(order.total || 0)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto space-y-6 scrollbar-hide">
-              {cartEntries.length === 0 ? (
+              {cartEntries.length === 0 && visibleKitchenOrders.length === 0 ? (
                 <div className="opacity-20 text-center py-24 italic text-sm font-medium tracking-widest uppercase">{ui[lang].empty}</div>
               ) : (
-                cartEntries.map(([id, qty]) => {
-                  const item = menuItems.find(m => m.id === id);
-                  if (!item) return null;
-                  return (
-                    <div key={id} className="flex justify-between items-center animate-in slide-in-from-right-3 duration-300">
-                      <div className="flex-1">
-                        <p className="font-bold text-sm leading-tight text-zinc-100">{lang === 'vi' ? item.nameVi : item.nameEn}</p>
-                        <p className="text-orange-500 font-black text-xs mt-1">{formatCurrency(item.price * qty)}</p>
+                <>
+                  {cartEntries.length > 0 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-orange-400">
+                          {lang === 'vi' ? 'Món mới đang chọn' : 'New items'}
+                        </p>
+                        <span className="rounded-full bg-orange-500/15 px-3 py-1 text-[10px] font-black text-orange-300">
+                          {totalItems} {ui[lang].items}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/5">
-                        <button onClick={() => updateQty(id, -1)} className="hover:text-orange-500 p-1"><Minus size={14} /></button>
-                        <span className="font-black text-sm w-5 text-center">{qty}</span>
-                        <button onClick={() => updateQty(id, 1)} className="hover:text-orange-500 p-1"><Plus size={14} /></button>
-                        <button onClick={() => updateQty(id, -qty)} className="ml-1 text-zinc-600 hover:text-red-500 p-1"><Trash2 size={14} /></button>
-                      </div>
+                      {cartEntries.map(([id, qty]) => {
+                        const item = menuItems.find(m => m.id === id);
+                        if (!item) return null;
+                        return (
+                          <div key={id} className="flex justify-between items-center animate-in slide-in-from-right-3 duration-300">
+                            <div className="flex-1">
+                              <p className="font-bold text-sm leading-tight text-zinc-100">{lang === 'vi' ? item.nameVi : item.nameEn}</p>
+                              <p className="text-orange-500 font-black text-xs mt-1">{formatCurrency(item.price * qty)}</p>
+                            </div>
+                            <div className="flex items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/5">
+                              <button onClick={() => updateQty(id, -1)} className="hover:text-orange-500 p-1"><Minus size={14} /></button>
+                              <span className="font-black text-sm w-5 text-center">{qty}</span>
+                              <button onClick={() => updateQty(id, 1)} className="hover:text-orange-500 p-1"><Plus size={14} /></button>
+                              <button onClick={() => updateQty(id, -qty)} className="ml-1 text-zinc-600 hover:text-red-500 p-1"><Trash2 size={14} /></button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })
+                  )}
+
+                  {groupedKitchenItems.length > 0 && (
+                    <div className="space-y-4 border-t border-white/10 pt-6">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-300">
+                          {lang === 'vi' ? 'Món đã gửi bếp' : 'Sent to kitchen'}
+                        </p>
+                        <span className="rounded-full bg-cyan-500/15 px-3 py-1 text-[10px] font-black text-cyan-200">
+                          {existingOrderItemsCount} {ui[lang].items}
+                        </span>
+                      </div>
+                      {false && visibleKitchenOrders.map(order => (
+                        <div key={`existing-${order.id}`} className="rounded-[1.8rem] border border-white/10 bg-black/20 p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-black text-white">#{order.id}</p>
+                              <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-zinc-400">{order.status || 'Chờ xử lý'}</p>
+                            </div>
+                            <p className="text-sm font-black text-emerald-300">{formatCurrency(order.total || 0)}</p>
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            {order.items.map(item => {
+                              const menuItem = menuItems.find(m => m.id === item.id);
+                              return (
+                                <div key={`${order.id}-${item.id}`} className="flex items-center justify-between text-sm">
+                                  <span className="text-zinc-200">{lang === 'vi' ? (menuItem?.nameVi || item.id) : (menuItem?.nameEn || menuItem?.nameVi || item.id)}</span>
+                                  <span className="font-bold text-cyan-200">x{item.qty}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                      {groupedKitchenItems.map(item => {
+                        const menuItem = menuItems.find(m => m.id === item.id);
+                        const statusLabel = item.statuses.length === 1 ? item.statuses[0] : 'Multiple batches';
+                        return (
+                          <div key={`existing-grouped-${item.id}`} className="rounded-[1.8rem] border border-white/10 bg-black/20 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-black text-white">{lang === 'vi' ? (menuItem?.nameVi || item.id) : (menuItem?.nameEn || menuItem?.nameVi || item.id)}</p>
+                                <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-zinc-400">{statusLabel || 'Pending'}</p>
+                              </div>
+                              <p className="text-sm font-black text-emerald-300">{formatCurrency(item.total)}</p>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between text-sm">
+                              <span className="text-zinc-400">Auto merged</span>
+                              <span className="font-bold text-cyan-200">x{item.qty}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -781,21 +1206,32 @@ export default function RestaurantMenu() {
                 <div>
                   <span className="text-zinc-500 font-bold text-[10px] uppercase tracking-[0.3em] block mb-1">{ui[lang].total}</span>
                   <span className="text-4xl font-black text-orange-500 tracking-tighter drop-shadow-lg">
-                    {formatCurrency(totalPrice)}
+                    {formatCurrency(displayGrandTotal)}
                   </span>
                 </div>
               </div>
-              <button
-                disabled={totalItems === 0 || isLoading}
-                onClick={placeOrder}
-                className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-zinc-800 disabled:text-zinc-700 text-white py-6 rounded-[2.5rem] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-orange-900/50 active:scale-95 transition-all flex justify-center items-center"
-              >
-                {isLoading ? (
-                  <span className="inline-block w-5 h-5 border-2 border-white border-r-transparent rounded-full animate-spin" />
-                ) : (
-                  ui[lang].btn
-                )}
-              </button>
+              <div className="grid gap-3">
+                <button
+                  disabled={!canPayNow}
+                  onClick={handlePayNow}
+                  className="order-2 w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-700 text-white py-6 rounded-[2.5rem] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-emerald-900/40 active:scale-95 transition-all flex justify-center items-center"
+                >
+                  {lang === 'vi' ? 'THANH TOÁN NGAY' : 'PAY NOW'}
+                </button>
+                <button
+                  disabled={totalItems === 0 || isLoading}
+                  onClick={placeOrder}
+                  className="order-1 w-full bg-orange-500 hover:bg-orange-600 disabled:bg-zinc-800 disabled:text-zinc-700 text-white py-6 rounded-[2.5rem] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-orange-900/50 active:scale-95 transition-all flex justify-center items-center"
+                >
+                  {isLoading ? (
+                    <span className="inline-block w-5 h-5 border-2 border-white border-r-transparent rounded-full animate-spin" />
+                  ) : (
+                    totalItems > 0 && visibleKitchenOrders.length > 0
+                      ? (lang === 'vi' ? 'GỬI MÓN MỚI VÀO BẾP' : 'SEND NEW ITEMS')
+                      : ui[lang].btn
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </aside>

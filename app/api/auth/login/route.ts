@@ -13,6 +13,7 @@ export async function POST(request: Request) {
     const data = await request.json();
     const username = String(data.username || '').trim();
     const password = String(data.password || '');
+    const expectedRole = data.role === 'staff' ? 'staff' : 'admin';
 
     if (!username || !password) {
       return NextResponse.json({ ok: false, error: 'Username and password are required' }, { status: 400 });
@@ -20,8 +21,11 @@ export async function POST(request: Request) {
 
     const account = await findAdminAccountByUsername(username);
 
-    if (!account || account.role !== 'admin') {
-      return NextResponse.json({ ok: false, error: 'Admin account not found' }, { status: 401 });
+    if (!account || account.role !== expectedRole) {
+      return NextResponse.json(
+        { ok: false, error: expectedRole === 'staff' ? 'Staff account not found' : 'Admin account not found' },
+        { status: 401 }
+      );
     }
 
     const valid = await verifyAdminPassword(account, password);
@@ -29,7 +33,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Invalid password' }, { status: 401 });
     }
 
-    if (!account.twoFactorEnabled) {
+    if (expectedRole === 'staff' || !account.twoFactorEnabled) {
       const token = signAdminSession({
         sub: account.id,
         username: account.username,
@@ -48,7 +52,15 @@ export async function POST(request: Request) {
     }
 
     if (!account.email) {
-      return NextResponse.json({ ok: false, error: 'Admin email is missing for two-factor authentication' }, { status: 400 });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: expectedRole === 'staff'
+            ? 'Staff account email is missing for two-factor authentication'
+            : 'Admin email is missing for two-factor authentication',
+        },
+        { status: 400 }
+      );
     }
 
     const code = generateOtp();

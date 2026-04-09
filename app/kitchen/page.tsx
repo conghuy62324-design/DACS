@@ -426,8 +426,9 @@ export default function KitchenView() {
             </div>
           )
         ) : (
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
-            <div className="mb-5 grid grid-cols-[110px_120px_100px_1fr_130px_130px] gap-3 border-b border-white/10 px-3 pb-3 text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xl sm:p-5">
+            <div className="overflow-x-auto">
+            <div className="mb-5 min-w-[760px] grid grid-cols-[110px_120px_100px_1fr_130px_130px] gap-3 border-b border-white/10 px-3 pb-3 text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
               <div>Thứ tự</div>
               <div>Bàn</div>
               <div>Giờ vào</div>
@@ -436,7 +437,7 @@ export default function KitchenView() {
               <div>Thao tác</div>
             </div>
 
-            <div className="space-y-3">
+            <div className="min-w-[760px] space-y-3">
               {todayHistoryOrders.length === 0 ? (
                 <div className="px-3 py-12 text-center text-zinc-500">Hôm nay chưa có đơn hàng nào.</div>
               ) : (
@@ -492,6 +493,7 @@ export default function KitchenView() {
                   );
                 })
               )}
+            </div>
             </div>
           </div>
         )}
