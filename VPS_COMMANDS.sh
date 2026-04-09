@@ -36,17 +36,19 @@ pm2 save
 pm2 startup
 
 # 6. Cấu hình Máy chủ Web NGINX để chuyển hướng Port 80 ra ngoài mạng
+sed -i 's/default_server//g' /etc/nginx/nginx.conf
+
 cat << 'EOF' > /etc/nginx/conf.d/dacs.conf
 server {
-    listen 80;
-    server_name 160.191.243.56;
+    listen 80 default_server;
+    server_name _;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_cache_bypass $http_upgrade;
     }
 }
