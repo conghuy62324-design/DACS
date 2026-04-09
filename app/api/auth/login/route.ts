@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { adminSessionCookieName, signAdminSession } from '@/lib/auth';
-import { findAdminAccountByUsername, saveAdminOtp, verifyAdminPassword } from '@/lib/admin-store';
+import {
+  findAdminAccountByEmail,
+  findAdminAccountByUsername,
+  saveAdminOtp,
+  verifyAdminPassword,
+} from '@/lib/admin-store';
 import { sendTwoFactorCode } from '@/lib/mailer';
 
 function generateOtp() {
@@ -11,29 +16,37 @@ function generateOtp() {
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    const username = String(data.username || '').trim();
-    const password = String(data.password || '');
+
+    const loginEmail = String(data.email || '').trim().toLowerCase();
+    const loginPassword = String(data.password || '');
     const expectedRole = data.role === 'staff' ? 'staff' : 'admin';
 
-    if (!username || !password) {
-      return NextResponse.json({ ok: false, error: 'Username and password are required' }, { status: 400 });
-    }
+    // Staff logic (Legacy)
+    if (expectedRole === 'staff') {
+      const legacyUsername = String(data.username || '').trim();
+      if (!legacyUsername || !loginPassword) {
+        return NextResponse.json(
+          { ok: false, error: 'Username and password are required' },
+          { status: 400 }
+        );
+      }
 
-    const account = await findAdminAccountByUsername(username);
+      const account = await findAdminAccountByUsername(legacyUsername);
+      if (!account || account.role !== 'staff') {
+        return NextResponse.json(
+          { ok: false, error: 'Staff account not found' },
+          { status: 401 }
+        );
+      }
 
-    if (!account || account.role !== expectedRole) {
-      return NextResponse.json(
-        { ok: false, error: expectedRole === 'staff' ? 'Staff account not found' : 'Admin account not found' },
-        { status: 401 }
-      );
-    }
+      const valid = await verifyAdminPassword(account, loginPassword);
+      if (!valid) {
+        return NextResponse.json(
+          { ok: false, error: 'Invalid password' },
+          { status: 401 }
+        );
+      }
 
-    const valid = await verifyAdminPassword(account, password);
-    if (!valid) {
-      return NextResponse.json({ ok: false, error: 'Invalid password' }, { status: 401 });
-    }
-
-    if (expectedRole === 'staff' || !account.twoFactorEnabled) {
       const token = signAdminSession({
         sub: account.id,
         username: account.username,
@@ -51,60 +64,41 @@ export async function POST(request: Request) {
       return response;
     }
 
-    if (!account.email) {
+    // ── Admin login: email + password → OTP ──
+    if (!loginEmail || !loginPassword) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: expectedRole === 'staff'
-            ? 'Staff account email is missing for two-factor authentication'
-            : 'Admin email is missing for two-factor authentication',
-        },
+        { ok: false, error: 'Vui lòng nhập đầy đủ email và mật khẩu' },
         { status: 400 }
       );
     }
 
+    const account = await findAdminAccountByEmail(loginEmail);
+
+    if (!account) {
+      return NextResponse.json(
+        { ok: false, error: 'Không tìm thấy tài khoản admin với email này' },
+        { status: 401 }
+      );
+    }
+
+    const valid = await verifyAdminPassword(account, loginPassword);
+    if (!valid) {
+      return NextResponse.json(
+        { ok: false, error: 'Mật khẩu không chính xác' },
+        { status: 401 }
+      );
+    }
+
+    // Generate OTP and send email WITHOUT awaiting so it transitions instantly
     const code = generateOtp();
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     await saveAdminOtp(account.id, codeHash, expiresAt);
 
-    try {
-      await sendTwoFactorCode(account.email, code);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to send OTP email';
-      const isDev = process.env.NODE_ENV !== 'production';
-
-      if (isDev) {
-        console.warn('admin login OTP email fallback', {
-          accountId: account.id,
-          email: account.email,
-          code,
-          reason: message,
-        });
-
-        return NextResponse.json({
-          ok: true,
-          requiresTwoFactor: true,
-          accountId: account.id,
-          email: account.email,
-          devOtp: code,
-          deliveryWarning: message.includes('App Password')
-            ? '2FA dang bat nhung Gmail SMTP chua duoc cau hinh App Password that. Dang dung OTP local de test.'
-            : `Khong gui duoc email OTP. Dang dung OTP local de test. Ly do: ${message}`,
-        });
-      }
-
-      return NextResponse.json(
-        {
-          ok: false,
-          error: message.includes('App Password')
-            ? '2FA đang bật nhưng Gmail SMTP chưa được cấu hình App Password thật.'
-            : message,
-        },
-        { status: 500 }
-      );
-    }
+    sendTwoFactorCode(account.email, code).catch(error => {
+      console.warn('Background OTP send failed:', error.message);
+    });
 
     return NextResponse.json({
       ok: true,
@@ -120,3 +114,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

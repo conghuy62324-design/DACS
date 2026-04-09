@@ -2,8 +2,11 @@
   {
     "id": "a1",
     "username": "admin",
-    "password": "admin",
+    "password": "Huy04052004@",
     "name": "Administrator",
-    "role": "admin"
+    "role": "admin",
+    "email": "conghuy62324@gmail.com",
+    "phone": "",
+    "twoFactorEnabled": true
   }
 ]

@@ -104,7 +104,7 @@ const saveTables = (tables: TableStorageItem[]) => {
 };
 
 export default function StaffOrderPage() {
-  const lang = 'vi' as const;
+  const lang: 'vi' | 'en' = 'vi';
   const [isDark, setIsDark] = useState(true);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -239,27 +239,7 @@ export default function StaffOrderPage() {
   }, []);
 
   useEffect(() => {
-    if (lang !== 'en') {
-      translatedRef.current = {};
-      return;
-    }
-    const toTranslate: Array<{ id: string; field: 'name' | 'description'; text: string }> = [];
-    menuItems.forEach(item => {
-      if (item.nameVi?.trim() && !item.nameEn?.trim() && !translatedRef.current[`${item.id}-name`]) toTranslate.push({ id: item.id, field: 'name', text: item.nameVi });
-      if (item.descriptionVi?.trim() && !item.descriptionEn?.trim() && !translatedRef.current[`${item.id}-desc`]) toTranslate.push({ id: item.id, field: 'description', text: item.descriptionVi });
-    });
-    toTranslate.forEach(async ({ id, field, text }) => {
-      translatedRef.current[`${id}-${field === 'name' ? 'name' : 'desc'}`] = true;
-      try {
-        const res = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, from: 'vi', to: 'en' }) });
-        const data = await res.json();
-        const translated = data.translatedText || text;
-        setMenuItems(prev => prev.map(item => item.id === id ? { ...item, [field === 'name' ? 'nameEn' : 'descriptionEn']: translated } : item));
-        await fetch('/api/menu', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, [field === 'name' ? 'nameEn' : 'descriptionEn']: translated }) });
-      } catch (error) {
-        console.error('translate error', error);
-      }
-    });
+    translatedRef.current = {};
   }, [lang, menuItems]);
   const getAvailableStock = useCallback((id: string) => getInventoryQuantity(inventoryStock[id]), [inventoryStock]);
 

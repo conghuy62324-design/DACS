@@ -30,6 +30,7 @@ import {
   type PaymentMethod,
   type PaymentMethodType,
 } from '@/lib/payment-client';
+import { buildCustomerMenuUrl } from '@/lib/qr';
 // charts
 import {
   Chart as ChartJS,
@@ -242,7 +243,7 @@ const TableQrPanel: React.FC<{
   const [origin] = useState(() => (typeof window !== 'undefined' ? window.location.origin : ''));
   const [tableMessage, setTableMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
-  const makeQrUrl = (table: string, tableFloor: string) => `${origin}/?table=${table}&floor=${tableFloor}`;
+  const makeQrUrl = (table: string, tableFloor: string) => buildCustomerMenuUrl(origin, table, tableFloor);
 
   const showTableMessage = (type: 'success' | 'error' | 'info', text: string) => {
     setTableMessage({ type, text });
@@ -1712,6 +1713,7 @@ const PaymentMethodsPanel: React.FC<{
   const [draft, setDraft] = useState(emptyDraft);
   const [message, setMessage] = useState('');
   const [uploadedQrFileName, setUploadedQrFileName] = useState('');
+  const mutedText = isDark ? 'text-zinc-400' : 'text-zinc-600';
 
   const resetDraft = useCallback(() => {
     setDraft(emptyDraft);
@@ -1759,6 +1761,9 @@ const PaymentMethodsPanel: React.FC<{
       accountNumber: draft.accountNumber.trim(),
       qrImage: draft.qrImage.trim(),
       qrContent: draft.qrContent.trim(),
+      paymentLink: draft.paymentLink.trim(),
+      paymentKey: draft.paymentKey.trim(),
+      providerName: draft.providerName.trim(),
       instructions: draft.instructions.trim(),
       active: draft.active,
       updatedAt: new Date().toISOString(),
@@ -2055,6 +2060,9 @@ const PaymentMethodsCompactPanel: React.FC<{
     accountNumber: '',
     qrImage: '',
     qrContent: '',
+    paymentLink: '',
+    paymentKey: '',
+    providerName: '',
     instructions: '',
     active: true,
   }), []);
@@ -2083,6 +2091,9 @@ const PaymentMethodsCompactPanel: React.FC<{
       accountNumber: method.accountNumber || '',
       qrImage: method.qrImage || '',
       qrContent: method.qrContent || '',
+      paymentLink: method.paymentLink || '',
+      paymentKey: method.paymentKey || '',
+      providerName: method.providerName || '',
       instructions: method.instructions || '',
       active: method.active,
     });
@@ -2489,7 +2500,7 @@ export default function AdminPage() {
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [authChecking, setAuthChecking] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loginUsername, setLoginUsername] = useState('');
+  const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginOtp, setLoginOtp] = useState('');
   const [pendingTwoFactor, setPendingTwoFactor] = useState<{
@@ -2499,10 +2510,25 @@ export default function AdminPage() {
     deliveryWarning?: string;
   } | null>(null);
   const [authError, setAuthError] = useState('');
+  const [isSendingCode, setIsSendingCode] = useState(false);
   const [orderViewMode, setOrderViewMode] = useState<HistoryViewMode>('today');
   const [orderSelectedDate, setOrderSelectedDate] = useState(getDateInputValue(new Date()));
   const [customerViewMode, setCustomerViewMode] = useState<HistoryViewMode>('today');
   const [customerSelectedDate, setCustomerSelectedDate] = useState(getDateInputValue(new Date()));
+
+  // Notifications
+  const [notificationsRead, setNotificationsRead] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const lowStockItems = useMemo(() => {
+    return menuItems.filter(item => getInventoryQuantity(inventoryStock[item.id]) <= 3);
+  }, [menuItems, inventoryStock]);
+
+  useEffect(() => {
+    if (lowStockItems.length > 0) {
+      setNotificationsRead(false);
+    }
+  }, [lowStockItems.length]);
 
   const saveTables = useCallback((next: TableInfo[]) => {
     setTables(next);
@@ -2595,46 +2621,59 @@ export default function AdminPage() {
     }
   };
 
+  const isIgnorableFetchError = (error: unknown) => {
+    if (error instanceof DOMException && error.name === 'AbortError') return true;
+    if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) return true;
+    return false;
+  };
+
+  const fetchJson = useCallback(async <T,>(input: RequestInfo | URL, init?: RequestInit): Promise<T> => {
+    const res = await fetch(input, { cache: 'no-store', ...init });
+    if (!res.ok) {
+      throw new Error(`Request failed: ${res.status} ${res.statusText}`);
+    }
+    return res.json() as Promise<T>;
+  }, []);
+
   const fetchMenu = useCallback(async () => {
     try {
-      const res = await fetch('/api/menu');
-      const data = await res.json();
-      setMenuItems(data);
+      const data = await fetchJson<MenuItem[]>('/api/menu');
+      if (Array.isArray(data)) setMenuItems(data);
     } catch (err) {
+      if (isIgnorableFetchError(err)) return;
       console.error('Failed to fetch menu', err);
     }
-  }, []);
+  }, [fetchJson]);
 
   const fetchCategories = useCallback(async () => {
     try {
-      const res = await fetch('/api/categories');
-      const data = await res.json();
+      const data = await fetchJson<CategoryType[]>('/api/categories');
       if (Array.isArray(data)) setCategories(data);
     } catch (err) {
+      if (isIgnorableFetchError(err)) return;
       console.error('Failed to fetch categories', err);
     }
-  }, []);
+  }, [fetchJson]);
 
   const fetchOrders = useCallback(async () => {
     try {
-      const res = await fetch('/api/orders');
-      const data = await res.json();
+      const data = await fetchJson<OrderType[]>('/api/orders');
       if (Array.isArray(data)) setOrders(data);
     } catch (err) {
+      if (isIgnorableFetchError(err)) return;
       console.error('Failed to fetch orders', err);
     }
-  }, []);
+  }, [fetchJson]);
 
   const fetchAccounts = useCallback(async () => {
     try {
-      const res = await fetch('/api/accounts');
-      const raw = await res.text();
-      const data = raw ? JSON.parse(raw) : null;
+      const data = await fetchJson<StaffAccount[]>('/api/accounts');
       if (Array.isArray(data)) setAccounts(data);
     } catch (err) {
+      if (isIgnorableFetchError(err)) return;
       console.error('Failed to fetch accounts', err);
     }
-  }, []);
+  }, [fetchJson]);
 
   useEffect(() => {
     try {
@@ -2725,24 +2764,28 @@ export default function AdminPage() {
 
   useEffect(() => {
     checkSession();
-    fetchAccounts();
     setInventoryStock(readInventoryStock());
+  }, []);
 
-    if (panel !== 'accounts') {
-      fetchMenu();
-      fetchCategories();
-      fetchOrders();
-    }
+  useEffect(() => {
+    if (!isAuthenticated) return;
 
-    const interval = setInterval(() => {
-      if (panel === 'accounts') return;
+    fetchAccounts();
+
+    if (panel === 'accounts') return;
+
+    fetchMenu();
+    fetchCategories();
+    fetchOrders();
+
+    const interval = window.setInterval(() => {
       fetchMenu();
       fetchCategories();
       fetchOrders();
     }, 5000);
 
-    return () => clearInterval(interval);
-  }, [fetchAccounts, fetchCategories, fetchMenu, fetchOrders, panel]);
+    return () => window.clearInterval(interval);
+  }, [fetchAccounts, fetchCategories, fetchMenu, fetchOrders, isAuthenticated, panel]);
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
@@ -2820,17 +2863,18 @@ export default function AdminPage() {
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
+    setIsSendingCode(true);
 
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: loginUsername, password: loginPassword }),
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        setAuthError(data.error || 'Login failed');
+        setAuthError(data.error || 'Không thể gửi mã xác thực');
         return;
       }
 
@@ -2850,7 +2894,9 @@ export default function AdminPage() {
       setIsAuthenticated(true);
       await checkSession();
     } catch {
-      setAuthError('Không thể đăng nhập admin.');
+      setAuthError('Không thể gửi mã xác thực. Vui lòng thử lại.');
+    } finally {
+      setIsSendingCode(false);
     }
   };
 
@@ -2886,6 +2932,7 @@ export default function AdminPage() {
     setIsAuthenticated(false);
     setCurrentUserId('');
     setPendingTwoFactor(null);
+    setLoginEmail('');
     setLoginPassword('');
     setLoginOtp('');
   };
@@ -3895,7 +3942,7 @@ export default function AdminPage() {
       if (typeof window !== 'undefined') setOrigin(window.location.origin);
     }, []);
 
-    const makeQrUrl = (table: string, tableFloor: string) => `${origin}/?table=${table}&floor=${tableFloor}`;
+    const makeQrUrl = (table: string, tableFloor: string) => buildCustomerMenuUrl(origin, table, tableFloor);
 
     const showTableMessage = (type: 'success' | 'error' | 'info', text: string) => {
       setTableMessage({ type, text });
@@ -4211,7 +4258,7 @@ export default function AdminPage() {
       if (typeof window !== 'undefined') setOrigin(window.location.origin);
     }, []);
 
-    const makeQrUrl = (table: string, floor: string) => `${origin}/?table=${table}&floor=${floor}`;
+    const makeQrUrl = (table: string, floor: string) => buildCustomerMenuUrl(origin, table, floor);
 
     const createTables = () => {
       const next: TableInfo[] = [];
@@ -5065,48 +5112,19 @@ const AccountsPanel: React.FC<{
   ]);
 
   const AdminAuthScreen = () => (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.18),_transparent_34%),linear-gradient(180deg,#0a0a0b_0%,#111114_100%)] text-white flex items-center justify-center p-6">
-      <div className="w-full max-w-5xl overflow-hidden rounded-[32px] border border-zinc-800 bg-zinc-950/95 shadow-[0_32px_120px_rgba(0,0,0,0.45)] lg:grid lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="hidden border-r border-zinc-800 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-10 lg:flex lg:flex-col lg:justify-between">
-          <div>
-            <span className="inline-flex rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
-              HCH RESTO ADMIN
-            </span>
-            <h1 className="mt-6 text-4xl font-black leading-tight text-white">
-              {pendingTwoFactor ? 'Xác thực 2 lớp' : 'Đăng nhập quản trị'}
-            </h1>
-            <p className="mt-4 max-w-md text-sm leading-7 text-zinc-400">
-              {pendingTwoFactor
-                ? `Nhập mã OTP đã gửi tới ${pendingTwoFactor?.email ?? ''} để hoàn tất đăng nhập admin.`
-                : 'Đăng nhập bằng tài khoản admin để truy cập dashboard, sản phẩm, đơn hàng và các cài đặt bảo mật.'}
-            </p>
-          </div>
-
-          <div className="grid gap-3">
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Security</p>
-              <p className="mt-2 text-lg font-semibold text-white">Admin account + OTP verification</p>
-            </div>
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Status</p>
-              <p className="mt-2 text-sm text-zinc-300">
-                {pendingTwoFactor ? 'Waiting for OTP confirmation' : 'Ready for admin sign-in'}
-              </p>
-            </div>
-          </div>
-        </div>
-
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.18),_transparent_34%),linear-gradient(180deg,#0a0a0b_0%,#111114_100%)] text-white flex items-center justify-center p-4">
+      <div className="w-full max-w-md overflow-hidden rounded-[32px] border border-zinc-800 bg-zinc-950/95 shadow-[0_32px_120px_rgba(0,0,0,0.45)]">
         <div className="p-8 sm:p-10">
           <div className="mx-auto max-w-md">
-            <div className="mb-8 lg:hidden">
+            <div className="mb-8">
               <span className="inline-flex rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
                 HCH RESTO ADMIN
               </span>
-              <h1 className="mt-5 text-3xl font-extrabold text-white">{pendingTwoFactor ? 'Xác thực 2 lớp' : 'Đăng nhập Admin'}</h1>
+              <h1 className="mt-5 text-3xl font-extrabold text-white">{pendingTwoFactor ? 'Nhập mã OTP' : 'Đăng nhập quản trị'}</h1>
               <p className="mt-2 text-sm text-zinc-400">
                 {pendingTwoFactor
-                  ? `Nhập mã OTP đã gửi tới ${pendingTwoFactor?.email ?? ''}`
-                  : 'Đăng nhập bằng tài khoản admin để vào trang quản trị.'}
+                  ? `Mã OTP đã gửi tới ${pendingTwoFactor?.email ?? ''}`
+                  : 'Nhập email và mật khẩu admin để đăng nhập.'}
               </p>
             </div>
 
@@ -5116,51 +5134,68 @@ const AccountsPanel: React.FC<{
               </div>
             )}
 
-            {pendingTwoFactor?.devOtp && (
-              <div className="mb-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                <p className="font-semibold text-white">{lang === 'vi' ? 'Mã OTP test nội bộ' : 'Local test OTP'}</p>
-                <p className="mt-1 font-mono text-lg tracking-[0.3em]">{pendingTwoFactor.devOtp}</p>
-              </div>
-            )}
+
 
             {pendingTwoFactor ? (
-              <form onSubmit={handleOtpVerify} className="space-y-5">
+              <form onSubmit={handleOtpVerify} className="space-y-5" autoComplete="off">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-200">Mã OTP</label>
+                  <label className="mb-2 block text-sm font-medium text-zinc-200">Mã xác thực OTP</label>
                   <input
                     value={loginOtp}
                     onChange={e => setLoginOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="Nhập mã OTP 6 số"
-                    className="w-full rounded-2xl border border-zinc-700 bg-black/40 px-4 py-4 text-lg tracking-[0.35em] text-white outline-none transition focus:border-orange-500"
+                    placeholder="_ _ _ _ _ _"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    className="w-full rounded-2xl border border-zinc-700 bg-black/40 px-4 py-4 text-center text-2xl tracking-[0.5em] text-white outline-none transition focus:border-orange-500 placeholder:tracking-normal placeholder:text-zinc-600"
                   />
+                  <p className="mt-3 text-center text-xs text-zinc-500">Mã có hiệu lực trong 10 phút</p>
                 </div>
                 <button type="submit" className="w-full rounded-2xl bg-orange-500 px-4 py-4 font-semibold text-white transition hover:bg-orange-400">
                   Xác nhận OTP
                 </button>
+                <button
+                  type="button"
+                  onClick={() => { setPendingTwoFactor(null); setLoginOtp(''); setAuthError(''); }}
+                  className="w-full rounded-2xl border border-zinc-700 px-4 py-3 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800"
+                >
+                  ← Quay lại trang đăng nhập
+                </button>
               </form>
             ) : (
-              <form onSubmit={handleAdminLogin} className="space-y-5">
+              <form onSubmit={handleAdminLogin} className="space-y-5" autoComplete="off">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-200">Tên đăng nhập admin</label>
+                  <label htmlFor="admin_login_email" className="mb-2 block text-sm font-medium text-zinc-200">Email quản trị viên</label>
                   <input
-                    value={loginUsername}
-                    onChange={e => setLoginUsername(e.target.value)}
-                    placeholder="admin"
+                    id="admin_login_email"
+                    name="admin_login_email"
+                    type="email"
+                    value={loginEmail}
+                    onChange={e => setLoginEmail(e.target.value)}
+                    placeholder="admin@example.com"
+                    autoComplete="off"
+                    autoFocus
                     className="w-full rounded-2xl border border-zinc-700 bg-black/40 px-4 py-4 text-white outline-none transition focus:border-orange-500"
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-200">Mật khẩu</label>
+                  <label htmlFor="admin_login_password" className="mb-2 block text-sm font-medium text-zinc-200">Mật khẩu</label>
                   <input
+                    id="admin_login_password"
+                    name="admin_login_password"
                     type="password"
                     value={loginPassword}
                     onChange={e => setLoginPassword(e.target.value)}
                     placeholder="Nhập mật khẩu"
+                    autoComplete="new-password"
                     className="w-full rounded-2xl border border-zinc-700 bg-black/40 px-4 py-4 text-white outline-none transition focus:border-orange-500"
                   />
                 </div>
-                <button type="submit" className="w-full rounded-2xl bg-orange-500 px-4 py-4 font-semibold text-white transition hover:bg-orange-400">
-                  Đăng nhập
+                <button
+                  type="submit"
+                  disabled={isSendingCode || !loginEmail.trim() || !loginPassword}
+                  className="w-full rounded-2xl bg-orange-500 px-4 py-4 font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSendingCode ? 'Đang xác thực...' : 'Đăng nhập'}
                 </button>
               </form>
             )}
@@ -5207,15 +5242,11 @@ const AccountsPanel: React.FC<{
           ) : (
             <form onSubmit={handleAdminLogin} className="mt-6 space-y-4">
               <input
-                value={loginUsername}
-                onChange={e => setLoginUsername(e.target.value)}
                 placeholder="Tên đăng nhập admin"
                 className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3"
               />
               <input
                 type="password"
-                value={loginPassword}
-                onChange={e => setLoginPassword(e.target.value)}
                 placeholder="Mật khẩu"
                 className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3"
               />
@@ -5274,18 +5305,90 @@ const AccountsPanel: React.FC<{
         })}
         </div>
         
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-zinc-700 pt-3 lg:mt-auto lg:flex-col lg:pt-6">
-          <button onClick={handleLogout} className={`flex items-center gap-3 rounded-lg px-3 py-2 transition lg:w-full ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-200'}`}>
-            <LogOut size={18} /> <span className="text-sm">{lang === 'vi' ? 'Đăng xuất' : 'Logout'}</span>
+        <div className="mt-3 flex flex-col gap-3 border-t border-zinc-700 pt-4 lg:mt-auto lg:pt-6 px-1">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg">
+               <Shield size={22} />
+            </div>
+            <div>
+              <p className={`text-sm font-bold leading-none ${isDark ? 'text-white' : 'text-zinc-900'}`}>Admin HCH RESTO</p>
+              <p className="mt-1 text-xs text-zinc-500">Admin</p>
+            </div>
+          </div>
+          <button onClick={() => window.open('/', '_blank')} className={`flex w-full items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition ${isDark ? 'border-zinc-700 hover:bg-zinc-800' : 'border-zinc-300 hover:bg-zinc-100'}`}>
+            <LayoutDashboard size={18} /> Xem website
           </button>
-          <button onClick={()=>setLang(l=> l==='vi'?'en':'vi')} className={`rounded-lg px-3 py-2 text-sm font-medium transition lg:w-full ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-200'}`}>{lang==='vi'?'EN':'VI'}</button>
-          <button onClick={()=>setIsDark(d=>!d)} className={`flex items-center gap-3 rounded-lg px-3 py-2 transition lg:w-full ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-200'}`}>{isDark?<Sun size={20}/>:<Moon size={20}/>} <span className="text-sm">{isDark ? 'Light' : 'Dark'}</span></button>
+          <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-500/10 py-2.5 text-sm font-semibold text-red-500 transition hover:bg-red-500/20">
+            <LogOut size={18} /> Đăng xuất
+          </button>
+          
+          <div className="flex gap-2">
+            <button onClick={()=>setLang(l=> l==='vi'?'en':'vi')} className={`flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition border ${isDark ? 'border-zinc-700 hover:bg-zinc-800' : 'border-zinc-300 hover:bg-zinc-100'}`}>{lang==='vi'?'EN':'VI'}</button>
+            <button onClick={()=>setIsDark(d=>!d)} className={`flex flex-1 items-center justify-center rounded-xl px-3 py-2 transition border ${isDark ? 'border-zinc-700 hover:bg-zinc-800' : 'border-zinc-300 hover:bg-zinc-100'}`}>{isDark?<Sun size={16}/>:<Moon size={16}/>}</button>
+          </div>
         </div>
       </nav>
 
       {/* main area */}
       <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
-        <h1 className="mb-4 text-2xl font-extrabold sm:mb-6 sm:text-3xl">{t[lang].management}</h1>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h1 className="text-2xl font-extrabold sm:text-3xl">{t[lang].management}</h1>
+          <div className="flex items-center gap-4 self-end sm:self-auto relative">
+            <div className={`text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>Xin chào, <span className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>Admin HCH RESTO</span></div>
+            <div className="relative">
+              <style>{`
+                @keyframes chuong-rung {
+                  0%, 100% { transform: rotate(0) }
+                  20%, 60% { transform: rotate(-15deg) }
+                  40%, 80% { transform: rotate(15deg) }
+                }
+                .chuong-dang-rung {
+                  animation: chuong-rung 0.6s infinite;
+                }
+              `}</style>
+              <button 
+                onClick={() => {
+                  setShowNotifications(prev => !prev);
+                  if (!notificationsRead) setNotificationsRead(true);
+                }}
+                className={`relative flex h-10 w-10 items-center justify-center rounded-full transition ${isDark ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-200 text-zinc-600 hover:text-zinc-900'} ${lowStockItems.length > 0 && !notificationsRead ? 'chuong-dang-rung text-red-400' : ''}`}
+              >
+                {lowStockItems.length > 0 && (
+                  <span className={`absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 ring-2 text-[9px] font-bold text-white shadow-sm ${isDark ? 'ring-zinc-950' : 'ring-white'}`}>
+                    {lowStockItems.length}
+                  </span>
+                )}
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              </button>
+
+              {/* Notifications Dropdown */}
+              {showNotifications && (
+                <div className={`absolute right-0 top-full mt-2 w-80 origin-top-right rounded-2xl border p-4 shadow-xl z-50 ${isDark ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-zinc-200 text-zinc-900'}`}>
+                  <h3 className="mb-4 text-xs font-bold opacity-80 uppercase tracking-widest">{lang === 'vi' ? 'Thông báo' : 'Notifications'}</h3>
+                  {lowStockItems.length > 0 ? (
+                    <div className="flex flex-col gap-2.5 max-h-[350px] overflow-y-auto pr-1">
+                      {lowStockItems.map(item => (
+                        <div key={item.id} className={`flex items-start gap-3 rounded-xl border p-3 transition ${isDark ? 'bg-transparent border-zinc-700 hover:bg-zinc-800' : 'bg-transparent border-zinc-200 hover:bg-zinc-50'}`}>
+                          <Package className={`${isDark ? 'text-zinc-400' : 'text-zinc-500'} shrink-0 mt-0.5`} size={16} />
+                          <div>
+                            <p className="text-sm font-semibold leading-tight">{lang === 'vi' ? item.nameVi : item.nameEn}</p>
+                            <p className={`text-xs mt-1 ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                              {lang === 'vi' ? 'Sắp hết hàng:' : 'Low stock:'} {getInventoryQuantity(inventoryStock[item.id])} {lang === 'vi' ? 'phần' : 'pcs'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className={`text-sm text-center py-4 ${isDark ? 'text-zinc-500' : 'text-zinc-600'}`}>
+                      {lang === 'vi' ? 'Không có thông báo mới' : 'No new notifications'}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
         {renderContent}
       </main>
     </div>

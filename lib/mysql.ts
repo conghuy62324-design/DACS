@@ -34,8 +34,8 @@ export function getPool() {
 }
 
 async function seedAccounts(pool: Pool) {
-  const jsonAccounts = readData<Array<{ id: string; username: string; password: string; name: string; role: string; phone?: string }>>('accounts.json', [
-    { id: 'a1', username: 'admin', password: 'admin', name: 'Administrator', role: 'admin', phone: '' },
+  const jsonAccounts = readData<Array<{ id: string; username: string; password: string; name: string; role: string; email?: string; phone?: string }>>('accounts.json', [
+    { id: 'a1', username: 'admin', password: 'Huy04052004@', name: 'Administrator', role: 'admin', email: 'conghuy62324@gmail.com', phone: '' },
   ]);
 
   for (const account of jsonAccounts) {
@@ -44,11 +44,11 @@ async function seedAccounts(pool: Pool) {
       continue;
     }
 
-    const passwordHash = await bcrypt.hash(account.password || 'admin', 10);
+    const passwordHash = await bcrypt.hash(account.password || 'Huy04052004@', 10);
     await pool.execute(
       `INSERT INTO accounts (id, username, password_hash, name, role, email, phone, two_factor_enabled)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [account.id, account.username, passwordHash, account.name, account.role === 'admin' ? 'admin' : 'staff', '', account.phone || '', 0]
+      [account.id, account.username, passwordHash, account.name, account.role === 'admin' ? 'admin' : 'staff', account.email || 'conghuy62324@gmail.com', account.phone || '', 1]
     );
   }
 }

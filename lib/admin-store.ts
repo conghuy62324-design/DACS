@@ -152,6 +152,35 @@ export async function findAdminAccountByUsername(username: string) {
   return readJsonAccounts().find(account => account.username === normalizedUsername) || null;
 }
 
+export async function findAdminAccountByEmail(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) return null;
+
+  const db = await getAdminDb();
+
+  if (db) {
+    const [rows] = await db.execute(
+      `SELECT id, username, password_hash as passwordHash, name, role, email, phone,
+              two_factor_enabled as twoFactorEnabled, created_at as createdAt
+       FROM accounts WHERE LOWER(email) = ? AND role = 'admin' LIMIT 1`,
+      [normalizedEmail]
+    );
+
+    const account = (rows as AdminAccountRecord[])[0];
+    return account
+      ? {
+          ...account,
+          twoFactorEnabled: Boolean(account.twoFactorEnabled),
+          createdAt: String(account.createdAt),
+        }
+      : null;
+  }
+
+  return readJsonAccounts().find(
+    account => account.email?.toLowerCase() === normalizedEmail && account.role === 'admin'
+  ) || null;
+}
+
 export async function findAdminAccountById(id: string) {
   const normalizedId = id.trim();
   const db = await getAdminDb();

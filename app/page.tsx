@@ -425,6 +425,7 @@ export default function RestaurantMenu() {
 
   const displayOrderItemsCount = totalItems + existingOrderItemsCount;
   const existingOrdersTotal = visibleKitchenOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const tableDueTotal = tableOpenOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
   const displayGrandTotal = totalPrice + existingOrdersTotal;
   const featuredPaymentMethod = paymentMethods[0] || null;
   const latestOpenOrder = tableOpenOrders[tableOpenOrders.length - 1] || null;
@@ -585,7 +586,7 @@ export default function RestaurantMenu() {
           <button
             disabled={customerName.trim() === ''}
             onClick={() => {
-              const key = `customerName_${tableInfo.table}_${tableInfo.floor}`;
+              const key = tableInfo ? `customerName_${tableInfo.table}_${tableInfo.floor}` : 'customerName';
               const trimmed = customerName.trim();
               localStorage.setItem(key, trimmed);
               setCustomerName(trimmed);

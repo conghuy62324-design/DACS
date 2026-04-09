@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
+import { buildCustomerMenuUrl } from '@/lib/qr';
 
 export default function QRManager() {
   const [tablesCount, setTablesCount] = useState(5);
@@ -17,10 +18,7 @@ export default function QRManager() {
   );
 
   const makeUrl = (table: number) => {
-    const params = new URLSearchParams();
-    params.set('table', table.toString().padStart(2, '0'));
-    params.set('floor', floor.toString());
-    return `${origin}/?${params.toString()}`;
+    return buildCustomerMenuUrl(origin, table.toString().padStart(2, '0'), floor.toString());
   };
 
   return (
