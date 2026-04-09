@@ -26,6 +26,10 @@ npm install
 export NODE_OPTIONS=--max_old_space_size=512
 npm run build
 
+# Chép bộ nhớ đệm CSS và ảnh tĩnh vào thư mục standalone theo chuẩn Next.js
+cp -r public .next/standalone/
+cp -r .next/static .next/standalone/.next/
+
 # 5. Khởi chạy dự án ngầm thông qua PM2
 pm2 restart ecosystem.config.js || pm2 start ecosystem.config.js
 pm2 save
