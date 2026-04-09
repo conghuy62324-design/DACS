@@ -16,7 +16,12 @@ cd /var/www/dacs
 mysql -u root -e "CREATE DATABASE IF NOT EXISTS hch_restaurant;"
 mysql -u root hch_restaurant < hch_restaurant.sql
 
-# 4. Cài đặt thư viện (npm install) và tiến hành đóng gói (build) Next.js
+# 4. Tạo bộ nhớ ảo SWAP 2GB để phòng tránh lỗi treo máy khi Build (OOM) và cài đặt npm
+fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+
 npm install
 export NODE_OPTIONS=--max_old_space_size=512
 npm run build
