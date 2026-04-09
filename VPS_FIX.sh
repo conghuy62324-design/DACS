@@ -1,15 +1,20 @@
 #!/bin/bash
 echo "1. Đang sửa lỗi mất hình ảnh và CSS..."
 cd /var/www/dacs
-cp -r public .next/standalone/
-cp -r .next/static .next/standalone/.next/
+cp -r public .next/standalone/ 2>/dev/null
+cp -r .next/static .next/standalone/.next/ 2>/dev/null
 pm2 restart all
 
-echo "2. Đang cấu hình Máy chủ Web đón tên miền hchrestaurant.shop..."
+echo "2. Đang tắt trang mặc định của AlmaLinux..."
+# Loại bỏ chữ default_server ở file gốc của AlmaLinux để không bị tranh chấp
+sed -i 's/default_server//g' /etc/nginx/nginx.conf
+
+echo "3. Đang cấu hình Máy chủ Web đón tên miền hchrestaurant.shop..."
 cat << 'EOF' > /etc/nginx/conf.d/dacs.conf
 server {
-    listen 80;
-    server_name 160.191.243.56 hchrestaurant.shop www.hchrestaurant.shop;
+    # Nhận toàn bộ lượng truy cập vào IP và tên miền
+    listen 80 default_server;
+    server_name _;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -21,6 +26,6 @@ server {
     }
 }
 EOF
-systemctl restart nginx
 
+systemctl restart nginx
 echo "🚀 HOÀN TẤT LẮP ĐẶT TÊN MIỀN VÀ SỬA CSS!"
