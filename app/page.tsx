@@ -517,8 +517,33 @@ export default function RestaurantMenu() {
     <div className={`min-h-screen transition-all duration-300 ${isDark ? 'bg-zinc-950 text-white' : 'bg-orange-50 text-zinc-900'}`} style={{ paddingBottom: displayOrderItemsCount > 0 ? '5rem' : 0 }}>
       <div className="max-w-7xl mx-auto p-4 lg:p-10 flex flex-col lg:flex-row gap-10">
         {toastMsg && (
-          <div className="fixed bottom-5 right-5 z-50 rounded-2xl border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-200">
-            {toastMsg}
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+            <div className={`rounded-[2rem] border-2 p-8 flex flex-col items-center justify-center gap-5 shadow-2xl animate-in zoom-in-95 duration-300 ${
+              toastType === 'success'
+                ? 'border-emerald-400 bg-emerald-950/95 text-emerald-100'
+                : 'border-red-400 bg-red-950/95 text-red-100'
+            }`}>
+              {/* Icon */}
+              <div className={`flex h-20 w-20 items-center justify-center rounded-full ${
+                toastType === 'success'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-red-500 text-white'
+              }`}>
+                {toastType === 'success' ? (
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                ) : (
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="15" y1="9" x2="9" y2="15" />
+                    <line x1="9" y1="9" x2="15" y2="15" />
+                  </svg>
+                )}
+              </div>
+              {/* Message */}
+              <p className="text-xl font-bold text-center">{toastMsg}</p>
+            </div>
           </div>
         )}
 
