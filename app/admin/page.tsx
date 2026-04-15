@@ -149,11 +149,16 @@ const readInventoryStock = (): InventoryState => {
   }
 };
 
-const saveInventoryStock = (next: InventoryState) => {
+const saveInventoryStock = async (next: InventoryState) => {
   if (typeof window === 'undefined') return;
 
   try {
     localStorage.setItem('inventoryStock', JSON.stringify(next));
+    await fetch('/api/inventory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(next),
+    });
   } catch {
     // ignore
   }
@@ -1027,8 +1032,16 @@ const InventoryManagementPanel: React.FC<{
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl mb-4">{lang === 'vi' ? 'Quản lý kho' : 'Inventory Management'}</h2>
-      <p className="text-sm text-zinc-200">{lang === 'vi' ? 'Nhập trực tiếp số lượng hiện có. Khi đơn được thanh toán, hệ thống sẽ tự trừ kho.' : 'Enter the current quantity directly. Paid orders will reduce stock automatically.'}</p>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold">{lang === 'vi' ? 'Quản lý kho' : 'Inventory Management'}</h2>
+        <button
+          onClick={() => saveInventoryStock(stock)}
+          className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-400"
+        >
+          {lang === 'vi' ? '☁️ Đồng bộ lên mây' : '☁️ Sync to Cloud'}
+        </button>
+      </div>
+      <p className="text-sm text-zinc-400">{lang === 'vi' ? 'Nhập trực tiếp số lượng hiện có. Khi đơn được thanh toán, hệ thống sẽ tự trừ kho.' : 'Enter the current quantity directly. Paid orders will reduce stock automatically.'}</p>
       <table className="w-full table-fixed text-sm border-collapse">
         <thead>
           <tr className="border-b">
@@ -2071,6 +2084,13 @@ const PaymentMethodsCompactPanel: React.FC<{
   const [message, setMessage] = useState('');
   const [uploadedQrFileName, setUploadedQrFileName] = useState('');
 
+  // Auto-select first method on load
+  useEffect(() => {
+    if (!selectedId && paymentMethods.length > 0) {
+      selectMethod(paymentMethods[0]);
+    }
+  }, [paymentMethods, selectedId]);
+
   const setField = <K extends keyof typeof draft,>(key: K, value: (typeof draft)[K]) => {
     setDraft(current => ({ ...current, [key]: value }));
   };
@@ -2126,14 +2146,11 @@ const PaymentMethodsCompactPanel: React.FC<{
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!draft.name.trim()) {
-      showMessage(lang === 'vi' ? 'Vui lòng nhập tên cổng thanh toán.' : 'Please enter a payment method name.');
-      return;
-    }
+    const finalName = draft.name.trim() || draft.bankName.trim() || draft.providerName.trim() || (lang === 'vi' ? 'Phương thức thanh toán' : 'Payment Method');
 
     const nextMethod: PaymentMethod = {
       id: selectedId || `${Date.now()}`,
-      name: draft.name.trim(),
+      name: finalName,
       type: draft.type,
       bankName: draft.bankName.trim(),
       accountName: draft.accountName.trim(),
@@ -2190,9 +2207,6 @@ const PaymentMethodsCompactPanel: React.FC<{
   const metricTone = isDark ? 'border-white/10 bg-white/[0.04]' : 'border-zinc-200 bg-white/90';
   const bankSectionTone = isDark ? 'border-blue-400/20 bg-[linear-gradient(180deg,rgba(37,99,235,0.12),rgba(255,255,255,0.02))]' : 'border-blue-200 bg-[linear-gradient(180deg,rgba(239,246,255,0.95),rgba(255,255,255,0.96))]';
   const gatewaySectionTone = isDark ? 'border-emerald-400/20 bg-[linear-gradient(180deg,rgba(16,185,129,0.10),rgba(255,255,255,0.02))]' : 'border-emerald-200 bg-[linear-gradient(180deg,rgba(236,253,245,0.96),rgba(255,255,255,0.96))]';
-  const saveButtonTone = 'rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-500 px-6 py-3.5 font-semibold text-white shadow-[0_14px_32px_rgba(37,99,235,0.35)] transition hover:from-blue-500 hover:via-indigo-400 hover:to-cyan-400';
-  const addButtonTone = isDark ? 'rounded-2xl border border-emerald-400/25 bg-emerald-500/12 px-5 py-3.5 font-semibold text-emerald-200 transition hover:bg-emerald-500/18' : 'rounded-2xl border border-emerald-300 bg-emerald-50 px-5 py-3.5 font-semibold text-emerald-700 transition hover:bg-emerald-100';
-  const deleteButtonTone = 'rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-3.5 font-semibold text-red-300 transition hover:bg-red-500/20';
 
   return (
     <div className="space-y-8">
@@ -2204,9 +2218,15 @@ const PaymentMethodsCompactPanel: React.FC<{
         <h2 className={`mt-4 text-4xl font-black tracking-tight sm:text-5xl ${isDark ? 'text-white' : 'text-zinc-900'}`}>
           {lang === 'vi' ? 'Cài đặt Thanh toán' : 'Payment Settings'}
         </h2>
-        <p className={`mt-3 max-w-2xl text-base leading-7 ${mutedText}`}>
-          {lang === 'vi' ? 'Quản lý phương thức thanh toán và thông tin chuyển khoản trong một khung gọn.' : 'Manage payment methods and transfer details in a compact single card.'}
-        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-4">
+          <p className={`text-base leading-7 ${mutedText}`}>
+            {lang === 'vi' ? 'Quản lý phương thức thanh toán và thông tin chuyển khoản trong một khung gọn.' : 'Manage payment methods and transfer details in a compact single card.'}
+          </p>
+          <div className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ring-1 ${isDark ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 ring-emerald-500/20' : 'border-emerald-200 bg-emerald-50 text-emerald-700 ring-emerald-200'}`}>
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            {lang === 'vi' ? 'Đã lưu lên Cloud' : 'Permanent Cloud Sync Active'}
+          </div>
+        </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -2262,6 +2282,7 @@ const PaymentMethodsCompactPanel: React.FC<{
       </div>
 
       <form onSubmit={handleSubmit} className={`overflow-hidden rounded-[32px] border ${cardTone}`}>
+        {/* ── HEADER ── */}
         <div className={`flex items-center justify-between gap-4 border-b px-6 py-6 sm:px-8 ${isDark ? 'border-white/10' : 'border-zinc-200'}`}>
           <div className="flex items-center gap-3">
             <div className="rounded-[22px] bg-gradient-to-br from-blue-500/25 to-cyan-400/10 p-3 text-blue-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
@@ -2269,10 +2290,10 @@ const PaymentMethodsCompactPanel: React.FC<{
             </div>
             <div>
               <h3 className={`text-2xl font-black sm:text-3xl ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                {draft.bankName || draft.providerName || (lang === 'vi' ? 'Chuyển khoản Ngân hàng & QR' : 'Bank Transfer & QR')}
+                {draft.bankName || draft.providerName || (lang === 'vi' ? 'Thông tin thanh toán' : 'Payment Information')}
               </h3>
               <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                {lang === 'vi' ? 'Chỉnh nhanh thông tin thanh toán và QR trong cùng một khối.' : 'Quickly edit transfer details and QR in one block.'}
+                {lang === 'vi' ? 'Nhập thông tin banking và tải ảnh QR để khách thanh toán.' : 'Enter banking details and upload a QR image for customers to pay.'}
               </p>
             </div>
           </div>
@@ -2288,142 +2309,212 @@ const PaymentMethodsCompactPanel: React.FC<{
           </button>
         </div>
 
+        {/* ── BODY ── */}
         <div className="space-y-6 p-6 sm:p-8">
-          <section className={`rounded-[30px] border p-5 sm:p-6 ${bankSectionTone}`}>
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className={`text-xs font-semibold uppercase tracking-[0.28em] ${isDark ? 'text-blue-200/80' : 'text-blue-700'}`}>
-                  {lang === 'vi' ? 'Thông tin chuyển khoản' : 'Transfer details'}
-                </p>
-                <h4 className={`mt-2 text-xl font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                  {lang === 'vi' ? 'Ngân hàng, chủ tài khoản và mã QR' : 'Bank account and QR'}
-                </h4>
-                <p className={`mt-1 text-sm ${mutedText}`}>
-                  {lang === 'vi' ? 'Khối này dành cho nhập STK, tên chủ tài khoản, ngân hàng và dán hoặc tải ảnh QR trực tiếp.' : 'Use this section for bank account details and a direct QR image.'}
-                </p>
-              </div>
-              <div className={`inline-flex w-fit rounded-full border px-3 py-1.5 text-xs font-semibold ${isDark ? 'border-blue-300/20 bg-blue-500/10 text-blue-100' : 'border-blue-200 bg-white text-blue-700'}`}>
-                {lang === 'vi' ? 'Bố cục nhanh cho khách quét' : 'Quick scan layout'}
-              </div>
+
+          {/* ── SECTION 1: Tên hiển thị ── */}
+          <section className={`rounded-[24px] border p-5 sm:p-6 ${isDark ? 'border-orange-500/20 bg-orange-500/5' : 'border-orange-200 bg-orange-50/50'}`}>
+            <p className={`text-xs font-semibold uppercase tracking-[0.28em] ${isDark ? 'text-orange-400' : 'text-orange-700'}`}>
+              {lang === 'vi' ? 'Tên hiển thị' : 'Display Name'}
+            </p>
+            <div className="mt-3">
+              <input
+                value={draft.name}
+                onChange={e => setField('name', e.target.value)}
+                placeholder={lang === 'vi' ? 'VD: Ngân hàng Vietcombank, Ví MoMo...' : 'e.g. Vietcombank, MoMo Wallet...'}
+                className={`w-full rounded-2xl border px-5 py-3.5 text-base outline-none transition focus:border-orange-400 ${inputTone}`}
+              />
+              <p className={`mt-2 text-xs italic ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                {lang === 'vi' ? '* Đây là tên khách hàng sẽ thấy khi chọn phương thức thanh toán.' : '* This is the name customers see when selecting a payment method.'}
+              </p>
             </div>
+          </section>
 
-            <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="space-y-4">
-                <div>
-                  <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{lang === 'vi' ? 'Tên Ngân hàng' : 'Bank name'}</label>
-                  <input value={draft.bankName} onChange={e => setField('bankName', e.target.value)} placeholder={lang === 'vi' ? 'Nhập tên ngân hàng' : 'Enter bank name'} className={`w-full rounded-2xl border px-5 py-3.5 outline-none transition focus:border-blue-400 ${inputTone}`} />
-                </div>
+          {/* ── SECTION 2: Thông tin banking ── */}
+          <section className={`rounded-[24px] border p-5 sm:p-6 ${bankSectionTone}`}>
+            <p className={`text-xs font-semibold uppercase tracking-[0.28em] ${isDark ? 'text-blue-200/80' : 'text-blue-700'}`}>
+              {lang === 'vi' ? 'Thông tin chuyển khoản' : 'Transfer Details'}
+            </p>
+            <p className={`mt-1 text-sm ${mutedText}`}>
+              {lang === 'vi' ? 'Nhập thông tin tài khoản ngân hàng của bạn.' : 'Enter your bank account information.'}
+            </p>
 
-                <div>
-                  <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{lang === 'vi' ? 'Chủ tài khoản' : 'Account holder'}</label>
-                  <input value={draft.accountName} onChange={e => setField('accountName', e.target.value)} placeholder={lang === 'vi' ? 'Nhập chủ tài khoản' : 'Enter account holder'} className={`w-full rounded-2xl border px-5 py-3.5 outline-none transition focus:border-blue-400 ${inputTone}`} />
-                </div>
-
-                <div>
-                  <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{lang === 'vi' ? 'Số tài khoản / Zelle' : 'Account number / Zelle'}</label>
-                  <input value={draft.accountNumber} onChange={e => setField('accountNumber', e.target.value)} placeholder={lang === 'vi' ? 'Nhập số tài khoản' : 'Enter account number'} className={`w-full rounded-2xl border px-5 py-3.5 outline-none transition focus:border-blue-400 ${inputTone}`} />
-                </div>
+            <div className="mt-5 grid gap-5 md:grid-cols-3">
+              <div>
+                <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  {lang === 'vi' ? 'Tên Ngân hàng' : 'Bank Name'}
+                </label>
+                <input
+                  value={draft.bankName}
+                  onChange={e => setField('bankName', e.target.value)}
+                  placeholder={lang === 'vi' ? 'VD: Vietcombank, MB Bank...' : 'e.g. Vietcombank, MB Bank...'}
+                  className={`w-full rounded-2xl border px-5 py-3.5 text-base outline-none transition focus:border-blue-400 ${inputTone}`}
+                />
               </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{lang === 'vi' ? 'Mã QR (Ảnh)' : 'QR image'}</label>
-                  <div className={`rounded-[28px] border p-4 ${isDark ? 'border-white/10 bg-[linear-gradient(180deg,rgba(59,130,246,0.08),rgba(255,255,255,0.02))]' : 'border-zinc-200 bg-white'}`}>
-                    <div className="flex aspect-square w-full max-w-[240px] items-center justify-center rounded-[24px] bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                      {draft.qrImage ? (
-                        <Image src={draft.qrImage} alt={draft.name || 'QR'} width={200} height={200} unoptimized className="h-full w-full rounded-2xl object-cover shadow-xl" />
-                      ) : draft.qrContent ? (
-                        <QRCodeCanvas value={draft.qrContent} size={180} includeMargin />
-                      ) : (
-                        <div className="text-center text-sm text-zinc-500">{lang === 'vi' ? 'Chưa có mã QR' : 'No QR available'}</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <input id="qr-image-upload" type="file" accept="image/*" onChange={handleQrUpload} className="hidden" />
-                  <div className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 ${isDark ? 'border-white/10 bg-white/5' : 'border-zinc-300 bg-zinc-50'}`}>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <label htmlFor="qr-image-upload" className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-400">
-                        {lang === 'vi' ? 'Chọn tệp' : 'Choose file'}
-                      </label>
-                      <span className={`text-sm ${mutedText}`}>
-                        {uploadedQrFileName || (lang === 'vi' ? 'Chưa chọn tệp nào' : 'No file selected')}
-                      </span>
-                    </div>
-                  </div>
-                  <p className={`mt-2 text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>{lang === 'vi' ? 'Upload ảnh QR mới để thay thế hoặc giữ nguyên ảnh hiện tại.' : 'Upload a new QR image or keep the current one.'}</p>
-                </div>
-
-                <div>
-                  <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{lang === 'vi' ? 'Link ảnh QR' : 'QR image URL'}</label>
-                  <input value={draft.qrImage} onChange={e => setField('qrImage', e.target.value)} placeholder={lang === 'vi' ? 'Dán link ảnh QR hoặc data:image/... vào đây' : 'Paste a QR image URL or data:image/... here'} className={`w-full rounded-2xl border px-5 py-3.5 outline-none transition focus:border-blue-400 ${inputTone}`} />
-                </div>
+              <div>
+                <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  {lang === 'vi' ? 'Chủ tài khoản' : 'Account Holder'}
+                </label>
+                <input
+                  value={draft.accountName}
+                  onChange={e => setField('accountName', e.target.value)}
+                  placeholder={lang === 'vi' ? 'VD: Nguyen Van A' : 'e.g. John Doe'}
+                  className={`w-full rounded-2xl border px-5 py-3.5 text-base outline-none transition focus:border-blue-400 ${inputTone}`}
+                />
+              </div>
+              <div>
+                <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                  {lang === 'vi' ? 'Số tài khoản' : 'Account Number'}
+                </label>
+                <input
+                  value={draft.accountNumber}
+                  onChange={e => setField('accountNumber', e.target.value)}
+                  placeholder={lang === 'vi' ? 'Nhập số tài khoản' : 'Enter account number'}
+                  className={`w-full rounded-2xl border px-5 py-3.5 text-base outline-none transition focus:border-blue-400 ${inputTone}`}
+                />
               </div>
             </div>
           </section>
 
-          <section className={`rounded-[30px] border p-5 sm:p-6 ${gatewaySectionTone}`}>
-            <div className="mb-5">
-              <p className={`text-xs font-semibold uppercase tracking-[0.28em] ${isDark ? 'text-emerald-200/80' : 'text-emerald-700'}`}>
-                {lang === 'vi' ? 'VietQR và cổng động' : 'VietQR and dynamic gateways'}
-              </p>
-              <h4 className={`mt-2 text-xl font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                {lang === 'vi' ? 'Link thanh toán, key và nội dung QR thay thế' : 'Link, key and fallback QR payload'}
-              </h4>
-              <p className={`mt-1 text-sm ${mutedText}`}>
-                {lang === 'vi' ? 'Dành cho các cổng như VietQR hoặc nhà cung cấp cần link thanh toán, key định danh hay chuỗi payload để render QR.' : 'Use this section for VietQR or providers that require a payment link, key or payload.'}
-              </p>
-            </div>
+          {/* ── SECTION 3: Ảnh QR ── */}
+          <section className={`rounded-[24px] border p-5 sm:p-6 ${gatewaySectionTone}`}>
+            <p className={`text-xs font-semibold uppercase tracking-[0.28em] ${isDark ? 'text-emerald-200/80' : 'text-emerald-700'}`}>
+              {lang === 'vi' ? 'Ảnh mã QR' : 'QR Code Image'}
+            </p>
+            <p className={`mt-1 text-sm ${mutedText}`}>
+              {lang === 'vi' ? 'Tải ảnh QR lên để khách quét khi thanh toán. Nhấn ✕ để xóa và chọn ảnh mới.' : 'Upload a QR image for customers to scan when paying. Click ✕ to remove and choose a new one.'}
+            </p>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{lang === 'vi' ? 'Tên nhà cung cấp / cổng' : 'Provider name'}</label>
-                <input value={draft.providerName} onChange={e => setField('providerName', e.target.value)} placeholder={lang === 'vi' ? 'Nhập tên nhà cung cấp' : 'Enter provider name'} className={`w-full rounded-2xl border px-5 py-3.5 outline-none transition focus:border-blue-400 ${inputTone}`} />
+            <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+              {/* QR Preview */}
+              <div className={`relative flex flex-col items-center justify-center rounded-[24px] border p-5 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-zinc-200 bg-white'}`}>
+                {draft.qrImage ? (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setField('qrImage', '');
+                        setUploadedQrFileName('');
+                      }}
+                      className="absolute -top-3 -right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-red-500 text-white shadow-lg transition hover:bg-red-400 active:scale-95"
+                      title={lang === 'vi' ? 'Xóa ảnh QR' : 'Remove QR image'}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                    <Image src={draft.qrImage} alt="QR" width={200} height={200} unoptimized className="h-[200px] w-[200px] rounded-2xl object-cover" />
+                  </div>
+                ) : (
+                  <div className="flex h-[200px] w-[200px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed text-center">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={isDark ? 'text-zinc-600' : 'text-zinc-300'}>
+                      <rect x="3" y="3" width="7" height="7" rx="1" />
+                      <rect x="14" y="3" width="7" height="7" rx="1" />
+                      <rect x="3" y="14" width="7" height="7" rx="1" />
+                      <rect x="14" y="14" width="3" height="3" rx="0.5" />
+                      <line x1="14" y1="20" x2="21" y2="20" />
+                      <line x1="17" y1="17" x2="21" y2="21" />
+                      <line x1="20" y1="14" x2="20" y2="21" />
+                    </svg>
+                    <p className={`text-sm ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                      {lang === 'vi' ? 'Chưa có ảnh QR' : 'No QR image'}
+                    </p>
+                  </div>
+                )}
               </div>
-              <div>
-                <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{lang === 'vi' ? 'Key / mã định danh' : 'Key / identifier'}</label>
-                <input value={draft.paymentKey} onChange={e => setField('paymentKey', e.target.value)} placeholder={lang === 'vi' ? 'Nhập key hoặc mã định danh' : 'Enter payment key'} className={`w-full rounded-2xl border px-5 py-3.5 outline-none transition focus:border-blue-400 ${inputTone}`} />
-              </div>
-              <div className="md:col-span-2">
-                <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{lang === 'vi' ? 'Link thanh toán / deeplink' : 'Payment link / deeplink'}</label>
-                <textarea value={draft.paymentLink} onChange={e => setField('paymentLink', e.target.value)} rows={3} placeholder={lang === 'vi' ? 'Dán link checkout, deeplink app ngân hàng hoặc link động của VietQR tại đây' : 'Paste a checkout link, banking deeplink or VietQR dynamic link here'} className={`w-full rounded-2xl border px-5 py-3.5 outline-none transition focus:border-blue-400 ${inputTone}`} />
-              </div>
-              <div className="md:col-span-2">
-                <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{lang === 'vi' ? 'Nội dung QR thay thế' : 'Fallback QR content'}</label>
-                <textarea value={draft.qrContent} onChange={e => setField('qrContent', e.target.value)} rows={3} placeholder={lang === 'vi' ? 'Dán nội dung VietQR hoặc chuỗi để hệ thống tự render QR.' : 'Paste VietQR content or raw text to render a QR automatically.'} className={`w-full rounded-2xl border px-5 py-3.5 outline-none transition focus:border-blue-400 ${inputTone}`} />
-              </div>
-              <div className="md:col-span-2">
-                <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{lang === 'vi' ? 'Hướng dẫn thanh toán' : 'Payment instructions'}</label>
-                <textarea value={draft.instructions} onChange={e => setField('instructions', e.target.value)} rows={4} placeholder={lang === 'vi' ? 'Nhập hướng dẫn thanh toán' : 'Enter payment instructions'} className={`w-full rounded-2xl border px-5 py-3.5 outline-none transition focus:border-blue-400 ${inputTone}`} />
+
+              {/* Upload Controls */}
+              <div className="flex-1 space-y-4">
+                <div>
+                  <input id="qr-image-upload-compact" type="file" accept="image/*" onChange={handleQrUpload} className="hidden" />
+                  <label
+                    htmlFor="qr-image-upload-compact"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg transition hover:from-emerald-400 hover:to-cyan-400 active:scale-95"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    {draft.qrImage
+                      ? (lang === 'vi' ? 'Đổi ảnh QR khác' : 'Replace QR Image')
+                      : (lang === 'vi' ? 'Chọn ảnh QR' : 'Choose QR Image')}
+                  </label>
+                  {uploadedQrFileName && (
+                    <p className={`mt-2 text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                      📎 {uploadedQrFileName}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                    {lang === 'vi' ? 'Hoặc dán link ảnh QR' : 'Or paste QR image URL'}
+                  </label>
+                  <input
+                    value={draft.qrImage}
+                    onChange={e => setField('qrImage', e.target.value)}
+                    placeholder={lang === 'vi' ? 'Dán link ảnh QR vào đây...' : 'Paste QR image URL here...'}
+                    className={`w-full rounded-2xl border px-5 py-3.5 text-base outline-none transition focus:border-blue-400 ${inputTone}`}
+                  />
+                </div>
+
+                {draft.qrImage && (
+                  <div className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm ${isDark ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    {lang === 'vi' ? 'Đã chọn ảnh QR. Nhấn ✕ để xóa.' : 'QR image selected. Click ✕ to remove.'}
+                  </div>
+                )}
               </div>
             </div>
           </section>
         </div>
 
-        <div className={`flex flex-wrap items-center justify-between gap-4 border-t px-6 py-5 sm:px-8 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-zinc-200 bg-zinc-50/70'}`}>
-          <div className="flex flex-wrap gap-3">
-            <span className={`inline-flex rounded-full px-4 py-2.5 text-sm font-semibold ${draft.active ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/20' : isDark ? 'bg-amber-500/15 text-amber-200 ring-1 ring-amber-400/20' : 'bg-amber-50 text-amber-700'}`}>
-              {draft.active ? (lang === 'vi' ? 'Đang hiển thị cho khách' : 'Visible to customers') : (lang === 'vi' ? 'Đang ẩn với khách' : 'Hidden from customers')}
-            </span>
-            <span className={`inline-flex rounded-full px-4 py-2.5 text-sm font-semibold ${isDark ? 'bg-fuchsia-500/15 text-fuchsia-200 ring-1 ring-fuchsia-400/20' : 'bg-fuchsia-50 text-fuchsia-700'}`}>
-              {selectedMethod ? `${lang === 'vi' ? 'Đã lưu' : 'Saved'}: ${getPaymentTypeLabel(selectedMethod.type, lang)}` : (lang === 'vi' ? 'Cổng mới chưa lưu' : 'New unsaved method')}
-            </span>
+        {/* ── FOOTER: Hướng dẫn + Actions ── */}
+        <div className={`border-t px-6 py-5 sm:px-8 ${isDark ? 'border-white/10 bg-white/[0.03]' : 'border-zinc-200 bg-zinc-50/70'}`}>
+          {/* Hướng dẫn thanh toán */}
+          <div className="mb-5">
+            <label className={`mb-2 block text-sm font-semibold ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+              {lang === 'vi' ? 'Hướng dẫn thanh toán (tùy chọn)' : 'Payment instructions (optional)'}
+            </label>
+            <textarea
+              value={draft.instructions}
+              onChange={e => setField('instructions', e.target.value)}
+              rows={3}
+              placeholder={lang === 'vi' ? 'VD: Ghi chú nội dung chuyển khoản theo mã đơn hàng để dễ đối soát.' : 'e.g. Include order ID in transfer note for easy reconciliation.'}
+              className={`w-full rounded-2xl border px-5 py-3.5 text-base outline-none transition focus:border-blue-400 ${inputTone}`}
+            />
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <button type="submit" className={saveButtonTone}>
-              {selectedId ? (lang === 'vi' ? 'Lưu thay đổi' : 'Save changes') : (lang === 'vi' ? 'Tạo cổng thanh toán' : 'Create method')}
-            </button>
-            <button type="button" onClick={createNewMethod} className={addButtonTone}>
-              {lang === 'vi' ? 'Thêm cổng mới' : 'Add new'}
-            </button>
-            {selectedId && (
-              <button type="button" onClick={deleteCurrentMethod} className={deleteButtonTone}>
-                {lang === 'vi' ? 'Xóa cổng' : 'Delete'}
+          {/* Action buttons row */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            {/* Status badges */}
+            <div className="flex flex-wrap gap-3">
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold ${draft.active ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/20' : isDark ? 'bg-amber-500/15 text-amber-200 ring-1 ring-amber-400/20' : 'bg-amber-50 text-amber-700'}`}>
+                <div className={`h-2 w-2 rounded-full ${draft.active ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                {draft.active ? (lang === 'vi' ? 'Hiển thị cho khách' : 'Visible to customers') : (lang === 'vi' ? 'Đang ẩn' : 'Hidden')}
+              </span>
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold ${isDark ? 'bg-blue-500/15 text-blue-200 ring-1 ring-blue-400/20' : 'bg-blue-50 text-blue-700'}`}>
+                {selectedMethod ? (lang === 'vi' ? 'Đã lưu' : 'Saved') : (lang === 'vi' ? 'Chưa lưu' : 'Not saved')}
+              </span>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex flex-wrap gap-3">
+              {selectedId && (
+                <button type="button" onClick={deleteCurrentMethod} className={`rounded-2xl border px-5 py-3 text-sm font-semibold transition ${isDark ? 'border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20' : 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'}`}>
+                  {lang === 'vi' ? '🗑 Xóa cổng' : '🗑 Delete'}
+                </button>
+              )}
+              <button type="button" onClick={createNewMethod} className={`rounded-2xl border px-5 py-3 text-sm font-semibold transition ${isDark ? 'border-white/15 bg-white/5 text-zinc-300 hover:bg-white/10' : 'border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-100'}`}>
+                {lang === 'vi' ? '+ Thêm cổng mới' : '+ Add new method'}
               </button>
-            )}
+              <button type="submit" className={`rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-500 px-8 py-3.5 text-base font-bold text-white shadow-[0_10px_30px_rgba(37,99,235,0.35)] transition hover:from-blue-500 hover:via-indigo-400 hover:to-cyan-400 active:scale-95`}>
+                💾 {lang === 'vi' ? 'LƯU THÔNG TIN' : 'SAVE'}
+              </button>
+            </div>
           </div>
         </div>
       </form>
@@ -2530,21 +2621,35 @@ export default function AdminPage() {
     }
   }, [lowStockItems.length]);
 
-  const saveTables = useCallback((next: TableInfo[]) => {
+  const saveTables = useCallback(async (next: TableInfo[]) => {
     setTables(next);
     try {
       localStorage.setItem('tables', JSON.stringify(next));
+      await fetch('/api/tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
     } catch {
       // ignore
     }
   }, []);
 
-  const savePaymentMethods = useCallback((next: PaymentMethod[]) => {
+  const savePaymentMethods = useCallback(async (next: PaymentMethod[]) => {
     setPaymentMethods(next);
     savePaymentMethodsToStorage(next);
+    try {
+      await fetch('/api/payment-methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+    } catch (err) {
+      console.error('Failed to sync payment methods to server', err);
+    }
   }, []);
 
-  const updateTableStatusByOrder = useCallback((tableNumber?: string, floor?: string, status: TableInfo['status'] = 'empty') => {
+  const updateTableStatusByOrder = useCallback(async (tableNumber?: string, floor?: string, status: TableInfo['status'] = 'empty') => {
     if (!tableNumber || !floor) return;
 
     setTables(current => {
@@ -2573,6 +2678,27 @@ export default function AdminPage() {
     });
 
     updateTableStatusInStorage(tableNumber, floor, status);
+
+    // Sync to server
+    try {
+      const resp = await fetch('/api/tables');
+      if (resp.ok) {
+        const remoteTables = await resp.json() as TableInfo[];
+        const next = remoteTables.map(t => 
+          normalizeSeatValue(t.table) === normalizeSeatValue(tableNumber) &&
+          normalizeSeatValue(t.floor) === normalizeSeatValue(floor)
+            ? { ...t, status }
+            : t
+        );
+        await fetch('/api/tables', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(next),
+        });
+      }
+    } catch (err) {
+      console.error('Failed to sync table status to server', err);
+    }
   }, []);
 
   const syncTableStatusByOrders = useCallback((tableNumber?: string, floor?: string, nextOrders?: OrderType[]) => {
@@ -2675,6 +2801,68 @@ export default function AdminPage() {
     }
   }, [fetchJson]);
 
+  const fetchInventory = useCallback(async (isPushForce = false) => {
+    try {
+      if (isPushForce) {
+        // Force sync: read from state (already from server) and push to server
+        const res = await fetch('/api/inventory');
+        if (res.ok) {
+          const data = await res.json();
+          await fetch('/api/inventory', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+          setInventoryStock(data || {});
+        }
+        return;
+      }
+
+      const res = await fetch('/api/inventory');
+      if (res.ok) {
+        const data = await res.json();
+        setInventoryStock(data || {});
+      }
+    } catch (err) {
+      console.error('Failed to fetch inventory', err);
+    }
+  }, []);
+
+  const fetchTables = useCallback(async (isPushForce = false) => {
+    try {
+      if (isPushForce) {
+        const localData = JSON.parse(localStorage.getItem('tables') || '[]');
+        await fetch('/api/tables', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(localData),
+        });
+        setTables(localData);
+        // sync feedback
+        return;
+      }
+
+      const res = await fetch('/api/tables');
+      if (res.ok) {
+        const data = await res.json();
+        const localData = JSON.parse(localStorage.getItem('tables') || '[]');
+        if ((!data || data.length === 0) && localData.length > 0) {
+          await fetch('/api/tables', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(localData),
+          });
+          setTables(localData);
+        } else {
+          setTables(data || []);
+          localStorage.setItem('tables', JSON.stringify(data || []));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch tables', err);
+    }
+  }, []);
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem('tables');
@@ -2709,9 +2897,37 @@ export default function AdminPage() {
     };
   }, []);
 
-  useEffect(() => {
-    setPaymentMethods(readPaymentMethodsFromStorage());
+  const fetchPaymentMethods = useCallback(async () => {
+    try {
+      const res = await fetch('/api/payment-methods');
+      if (res.ok) {
+        const serverData = await res.json();
+        const localData = readPaymentMethodsFromStorage();
+        
+        if (Array.isArray(serverData) && serverData.length > 0) {
+          // Server wins
+          setPaymentMethods(serverData);
+          savePaymentMethodsToStorage(serverData);
+        } else if (Array.isArray(localData) && localData.length > 0) {
+          // Rescue local data to Cloud
+          setPaymentMethods(localData);
+          await fetch('/api/payment-methods', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(localData),
+          });
+        } else {
+          setPaymentMethods([]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch payment methods', err);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchPaymentMethods();
+  }, [fetchPaymentMethods]);
 
   useEffect(() => {
     const syncPaymentMethods = () => {
@@ -2764,13 +2980,14 @@ export default function AdminPage() {
 
   useEffect(() => {
     checkSession();
-    setInventoryStock(readInventoryStock());
   }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
     fetchAccounts();
+    fetchInventory();
+    fetchTables();
 
     if (panel === 'accounts') return;
 
@@ -2782,21 +2999,14 @@ export default function AdminPage() {
       fetchMenu();
       fetchCategories();
       fetchOrders();
+      fetchInventory();
+      fetchTables();
     }, 5000);
 
     return () => window.clearInterval(interval);
-  }, [fetchAccounts, fetchCategories, fetchMenu, fetchOrders, isAuthenticated, panel]);
+  }, [fetchAccounts, fetchCategories, fetchInventory, fetchMenu, fetchOrders, fetchTables, isAuthenticated, panel]);
 
-  useEffect(() => {
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === 'inventoryStock') {
-        setInventoryStock(readInventoryStock());
-      }
-    };
-
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
+  // Remove storage event listener for inventoryStock - data now comes from server
 
   useEffect(() => {
     if (!currentUserId && accounts.length > 0) {
@@ -2938,9 +3148,12 @@ export default function AdminPage() {
   };
 
   // components inside panel
-  const subtractInventoryForOrder = (order: OrderType) => {
+  const subtractInventoryForOrder = async (order: OrderType) => {
     updateInventoryForPaidOrder(order);
-    setInventoryStock(readInventoryStock());
+    // Use current server state (inventoryStock) and save to server
+    await saveInventoryStock(inventoryStock);
+    // Refetch to ensure consistency
+    fetchInventory();
   };
 
   const OrderPanel: React.FC<{
@@ -2960,7 +3173,13 @@ export default function AdminPage() {
         const activeDate = viewMode === 'today' ? todayKey : selectedDate;
         return isSameDate(order.createdAt, activeDate);
       })
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      .sort((a, b) => {
+        const aPaid = isPaidOrderStatus(a.status);
+        const bPaid = isPaidOrderStatus(b.status);
+        if (aPaid && !bPaid) return 1;
+        if (!aPaid && bPaid) return -1;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
 
     const counts = filteredOrders.reduce(
       (acc, order) => {
@@ -2968,7 +3187,7 @@ export default function AdminPage() {
         if (status === 'Chờ xử lý' || status === 'Processing') acc.processing++;
         if (status === 'Đang nấu' || status === 'Cooking') acc.cooking++;
         if (status === 'Đã nấu xong' || status === 'Cooked') acc.cooked++;
-        if (status === 'Tá»« chá»‘i' || status === 'Rejected') acc.rejected++;
+        if (status === 'Từ chối' || status === 'Rejected') acc.rejected++;
         if (status === 'Đã phục vụ' || status === 'Served') acc.served++;
         if (status === 'Đã thanh toán' || status === 'Paid') acc.paid++;
         return acc;
@@ -3096,8 +3315,6 @@ export default function AdminPage() {
       paid: lang === 'vi' ? 'Đã thanh toán' : 'Paid',
     };
 
-    const paymentQueue = filteredOrders.filter(order => order.status !== (lang === 'vi' ? 'Đã thanh toán' : 'Paid') && order.status !== (lang === 'vi' ? 'Từ chối' : 'Rejected'));
-    const paymentTotal = paymentQueue.reduce((sum, order) => sum + Number(order.total || 0), 0);
 
     const getStatusTone = (status: string) => {
       if (status === 'Đang nấu' || status === 'Cooking') {
@@ -3121,7 +3338,7 @@ export default function AdminPage() {
         };
       }
 
-      if (status === 'Tá»« chá»‘i' || status === 'Rejected') {
+      if (status === 'Từ chối' || status === 'Rejected') {
         return {
           badge: 'border border-rose-300/30 bg-rose-400/15 text-rose-100',
           card: isDark ? 'border-rose-400/30 bg-rose-500/8' : 'border-rose-200 bg-rose-50',
@@ -3132,6 +3349,13 @@ export default function AdminPage() {
         return {
           badge: 'border border-emerald-300/30 bg-emerald-400/15 text-emerald-100',
           card: isDark ? 'border-emerald-400/30 bg-emerald-500/8' : 'border-emerald-200 bg-emerald-50',
+        };
+      }
+
+      if (status === 'Đã thanh toán' || status === 'Paid' || isPaidOrderStatus(status)) {
+        return {
+          badge: 'border border-emerald-300/40 bg-emerald-500/20 text-emerald-100',
+          card: isDark ? 'border-emerald-500/40 bg-emerald-600/10 shadow-[0_18px_40px_-26px_rgba(16,185,129,0.7)]' : 'border-emerald-300 bg-emerald-50',
         };
       }
 
@@ -3189,53 +3413,6 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {paymentQueue.length > 0 && (
-          <div className={`rounded-[24px] border p-4 ${isDark ? 'border-emerald-500/20 bg-emerald-500/10' : 'border-emerald-200 bg-emerald-50'}`}>
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-400">
-                  {lang === 'vi' ? 'Mục thanh toán tự động' : 'Automatic payment queue'}
-                </p>
-                <h3 className={`mt-2 text-2xl font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>{formatVND(paymentTotal)}</h3>
-                <p className={`mt-1 text-sm ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                  {lang === 'vi'
-                    ? `${paymentQueue.length} đơn đang chờ thu tiền hoặc mở bill thanh toán`
-                    : `${paymentQueue.length} orders ready for checkout or payment link sharing`}
-                </p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[520px]">
-                {paymentQueue.slice(0, 4).map(order => (
-                  <div key={`queue-${order.id}`} className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-white bg-white/80'}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className={`text-sm font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>#{order.id}</p>
-                        <p className={`mt-1 text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>{order.customer || (lang === 'vi' ? 'Khách lẻ' : 'Walk-in')}</p>
-                      </div>
-                      <p className="text-sm font-black text-orange-400">{formatVND(order.total || 0)}</p>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPaymentOrder(order)}
-                        className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400"
-                      >
-                        {lang === 'vi' ? 'Thu ti?n' : 'Collect'}
-                      </button>
-                      <a
-                        href={`/pay/${order.id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold transition ${isDark ? 'border-white/10 text-white hover:bg-white/5' : 'border-zinc-300 text-zinc-900 hover:bg-white'}`}
-                      >
-                        {lang === 'vi' ? 'M? link' : 'Open link'}
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
 
         {filteredOrders.length > 0 ? (
           <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
@@ -3263,8 +3440,8 @@ export default function AdminPage() {
                       </div>
 
                       <div>
-                        <p className="text-lg font-black leading-tight md:text-[1.55rem]">
-                          {lang === 'vi' ? 'Đơn hàng' : 'Order'}
+                        <p className="text-base font-bold text-zinc-300">
+                          {lang === 'vi' ? `Bàn ${order.table || '--'} • Tầng ${order.floor || '--'}` : `Table ${order.table || '--'} • Floor ${order.floor || '--'}`}
                         </p>
                       </div>
                     </div>
@@ -3274,16 +3451,16 @@ export default function AdminPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                          {lang === 'vi' ? 'Thông tin khách' : 'Customer info'}
+                          {lang === 'vi' ? 'Khách hàng' : 'Customer'}
                         </p>
                         <p className="mt-2 text-base font-bold">{order.customer || (lang === 'vi' ? 'Khách lẻ' : 'Walk-in')}</p>
                         <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                          {lang === 'vi' ? `Nhân viên phụ trách: ${order.handler || 'Chưa cập nhật'}` : `Handler: ${order.handler || 'Not assigned'}`}
+                          {lang === 'vi' ? `Phụ trách: ${order.handler || 'Chưa có'}` : `Handler: ${order.handler || 'None'}`}
                         </p>
                       </div>
                       <div className={`min-w-[130px] rounded-2xl border px-3 py-2 text-right ${isDark ? 'border-white/10 bg-black/25' : 'border-zinc-200 bg-zinc-50'}`}>
-                        <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{lang === 'vi' ? 'Mã bàn' : 'Seat'}</p>
-                        <p className="mt-1 text-sm font-bold">{order.table || '--'}{order.floor ? ` • Tầng ${order.floor}` : ''}</p>
+                        <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{lang === 'vi' ? 'Bàn' : 'Table'}</p>
+                        <p className="mt-1 text-sm font-bold">{order.table || '--'}{order.floor ? ` • ${lang === 'vi' ? 'Tầng' : 'Floor'} ${order.floor}` : ''}</p>
                       </div>
                     </div>
                   </div>
@@ -3543,6 +3720,12 @@ export default function AdminPage() {
     const filteredOrders = orders.filter(order => {
       const activeDate = viewMode === 'today' ? todayKey : selectedDate;
       return isSameDate(order.createdAt, activeDate);
+    }).sort((a, b) => {
+      const aPaid = isPaidOrderStatus(a.status);
+      const bPaid = isPaidOrderStatus(b.status);
+      if (aPaid && !bPaid) return 1;
+      if (!aPaid && bPaid) return -1;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
 
     const counts = filteredOrders.reduce((acc, o) => {
@@ -3550,7 +3733,7 @@ export default function AdminPage() {
       if (s === 'Chờ xử lý' || s === 'Processing') acc.processing++;
       if (s === 'Đang nấu' || s === 'Cooking') acc.cooking++;
       if (s === 'Đã nấu xong' || s === 'Cooked') acc.cooked++;
-      if (s === 'Tá»« chá»‘i' || s === 'Rejected') acc.rejected++;
+      if (s === 'Từ chối' || s === 'Rejected') acc.rejected++;
       if (s === 'Đã phục vụ' || s === 'Served') acc.served++;
       if (s === 'Đã thanh toán' || s === 'Paid') acc.paid++;
       return acc;
@@ -4027,7 +4210,7 @@ export default function AdminPage() {
             <div class="sheet">
               <div class="badge">HCH RESTO QR</div>
               <h1 class="title">Bàn ${table.table}</h1>
-              <p class="subtitle">Táº§ng ${table.floor}</p>
+              <p class="subtitle">Tầng ${table.floor}</p>
               <img src="${dataUrl}" alt="QR Table ${table.table}" />
               <p class="url">${table.qr}</p>
             </div>
@@ -4063,9 +4246,17 @@ export default function AdminPage() {
         <div className="rounded-3xl border border-zinc-800 bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
-              <span className="inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
-                {lang === 'vi' ? 'QR bàn ăn' : 'Table QR'}
-              </span>
+              <div className="flex items-center gap-4">
+                <span className="inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
+                  {lang === 'vi' ? 'QR bàn ăn' : 'Table QR'}
+                </span>
+                <button
+                  onClick={() => saveTables(tables)}
+                  className="rounded-xl bg-orange-500 px-4 py-1.5 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-400"
+                >
+                  {lang === 'vi' ? '☁️ Đồng bộ lên mây' : '☁️ Sync to Cloud'}
+                </button>
+              </div>
               <div>
                 <h2 className="text-3xl font-extrabold text-white">{lang === 'vi' ? 'Tạo QR từng bàn riêng lẻ' : 'Generate QR per table'}</h2>
                 <p className="mt-2 max-w-2xl text-sm text-zinc-400">
@@ -4322,7 +4513,7 @@ export default function AdminPage() {
             <div class="sheet">
               <div class="badge">HCH RESTO QR</div>
               <h1 class="title">Bàn ${table.table}</h1>
-              <p class="subtitle">Táº§ng ${table.floor}</p>
+              <p class="subtitle">Tầng ${table.floor}</p>
               <img src="${dataUrl}" alt="QR Table ${table.table}" />
               <p class="url">${table.qr}</p>
             </div>
@@ -4620,13 +4811,16 @@ const AccountsPanel: React.FC<{
     currentUserId: string;
     refreshAccounts: () => Promise<void>;
   }> = ({ accounts, currentUserId, refreshAccounts }) => {
-    const [staffUsername, setStaffUsername] = useState('');
+    const [staffPhone, setStaffPhone] = useState('');
     const [staffPassword, setStaffPassword] = useState('');
     const [staffName, setStaffName] = useState('');
     const [adminEmail, setAdminEmail] = useState('');
     const [adminPhone, setAdminPhone] = useState('');
     const [adminTwoFactorEnabled, setAdminTwoFactorEnabled] = useState(false);
     const [adminPassword, setAdminPassword] = useState('');
+    const [newAdminEmail, setNewAdminEmail] = useState('');
+    const [newAdminPassword, setNewAdminPassword] = useState('');
+    const [isAddingAdmin, setIsAddingAdmin] = useState(false);
     const [msg, setMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
     const [isSavingSecurity, setIsSavingSecurity] = useState(false);
     const [isCreatingAccount, setIsCreatingAccount] = useState(false);
@@ -4652,8 +4846,8 @@ const AccountsPanel: React.FC<{
       e.preventDefault();
       setMsg(null);
 
-      if (!staffUsername.trim() || !staffPassword.trim() || !staffName.trim()) {
-        showMessage('error', lang === 'vi' ? 'Vui lòng nhập đầy đủ tên đăng nhập, mật khẩu và tên hiển thị.' : 'Please complete username, password and display name.');
+      if (!staffPhone.trim() || !staffPassword.trim() || !staffName.trim()) {
+        showMessage('error', lang === 'vi' ? 'Vui lòng nhập đầy đủ số điện thoại, mật khẩu và tên nhân viên.' : 'Please complete phone, password and staff name.');
         return;
       }
 
@@ -4663,12 +4857,9 @@ const AccountsPanel: React.FC<{
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            username: staffUsername.trim(),
+            phone: staffPhone.trim(),
             password: staffPassword.trim(),
             name: staffName.trim(),
-            email: '',
-            phone: '',
-            twoFactorEnabled: false,
             role: 'staff',
           }),
         });
@@ -4680,12 +4871,53 @@ const AccountsPanel: React.FC<{
         }
 
         await refreshAccounts();
-        setStaffUsername('');
+        setStaffPhone('');
         setStaffPassword('');
         setStaffName('');
         showMessage('success', lang === 'vi' ? 'Đã thêm tài khoản nhân viên mới.' : 'Staff account created successfully.');
       } finally {
         setIsCreatingAccount(false);
+      }
+    };
+
+    const addAdminAccount = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setMsg(null);
+
+      const email = newAdminEmail.trim().toLowerCase();
+      const password = newAdminPassword.trim();
+
+      if (!email || !password) {
+        showMessage('error', lang === 'vi' ? 'Vui lòng nhập đầy đủ email và mật khẩu admin.' : 'Please fill admin email and password.');
+        return;
+      }
+      if (!email.includes('@')) {
+        showMessage('error', lang === 'vi' ? 'Email không hợp lệ.' : 'Invalid email address.');
+        return;
+      }
+      if (password.length < 6) {
+        showMessage('error', lang === 'vi' ? 'Mật khẩu phải có ít nhất 6 ký tự.' : 'Password must be at least 6 characters.');
+        return;
+      }
+
+      setIsAddingAdmin(true);
+      try {
+        const res = await fetch('/api/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, role: 'admin' }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showMessage('error', data.error || (lang === 'vi' ? 'Không thể tạo tài khoản admin.' : 'Unable to create admin account.'));
+          return;
+        }
+        await refreshAccounts();
+        setNewAdminEmail('');
+        setNewAdminPassword('');
+        showMessage('success', lang === 'vi' ? 'Đã tạo tài khoản admin mới. Mã 2FA sẽ gửi về email.' : 'Admin account created. OTP will be sent to the email.');
+      } finally {
+        setIsAddingAdmin(false);
       }
     };
 
@@ -4923,6 +5155,57 @@ const AccountsPanel: React.FC<{
             </div>
           </form>
 
+          {/* Form thêm tài khoản admin mới */}
+          <form onSubmit={addAdminAccount} className="rounded-3xl border border-orange-500/30 bg-zinc-900/80 p-6 shadow-[0_16px_48px_rgba(0,0,0,0.28)]">
+            <div className="flex items-center gap-3 mb-4">
+              <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'Thêm tài khoản admin mới' : 'Add new admin account'}</h3>
+              <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-xs font-semibold text-orange-300">
+                2FA
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-zinc-400">
+              {lang === 'vi'
+                ? 'Tạo tài khoản admin mới. Mã 2FA sẽ được gửi về email khi đăng nhập.'
+                : 'Create a new admin account. OTP code will be sent to the email on login.'}
+            </p>
+
+            <div className="mt-6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-200">Email</label>
+                <input
+                  type="email"
+                  value={newAdminEmail}
+                  onChange={e => setNewAdminEmail(e.target.value)}
+                  autoComplete="off"
+                  placeholder="admin@gmail.com"
+                  className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Mật khẩu' : 'Password'}</label>
+                <input
+                  type="password"
+                  value={newAdminPassword}
+                  onChange={e => setNewAdminPassword(e.target.value)}
+                  autoComplete="new-password"
+                  placeholder={lang === 'vi' ? 'Ít nhất 6 ký tự' : 'At least 6 characters'}
+                  className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isAddingAdmin}
+              className="mt-6 w-full rounded-2xl bg-orange-600 px-5 py-3 font-semibold text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isAddingAdmin
+                ? (lang === 'vi' ? 'Đang tạo...' : 'Creating...')
+                : (lang === 'vi' ? 'Thêm tài khoản admin' : 'Add admin account')}
+            </button>
+          </form>
+
+          {/* Form thêm tài khoản nhân viên */}
           <form onSubmit={addAccount} className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-[0_16px_48px_rgba(0,0,0,0.28)]">
             <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'Thêm tài khoản nhân viên' : 'Create staff account'}</h3>
             <p className="mt-1 text-sm text-zinc-400">
@@ -4933,15 +5216,22 @@ const AccountsPanel: React.FC<{
 
             <div className="mt-6 space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Tên đăng nhập' : 'Username'}</label>
-                <input value={staffUsername} onChange={e => setStaffUsername(e.target.value)} autoComplete="off" name="staff_username_new" className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
+                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Số điện thoại' : 'Phone number'}</label>
+                <input
+                  value={staffPhone}
+                  onChange={e => setStaffPhone(e.target.value.replace(/[^\d]/g, ''))}
+                  autoComplete="off"
+                  inputMode="tel"
+                  placeholder="0912345678"
+                  className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
+                />
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Mật khẩu' : 'Password'}</label>
                 <input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} autoComplete="new-password" name="staff_password_new" className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Tên hiển thị' : 'Display name'}</label>
+                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Tên nhân viên' : 'Staff name'}</label>
                 <input value={staffName} onChange={e => setStaffName(e.target.value)} autoComplete="off" name="staff_display_name" className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
               </div>
             </div>
