@@ -639,21 +639,120 @@ export default function RestaurantMenu() {
           </div>
         )}
 
-        {/* mobile footer */}
-        {totalItems > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-900/95 p-4 border-t border-white/5 lg:hidden flex justify-between items-center backdrop-blur-lg">
-            <div>
-              <p className="text-xs opacity-50 uppercase tracking-widest">{ui[lang].items}: {displayOrderItemsCount}</p>
-              <p className="font-black text-lg">{formatCurrency(displayGrandTotal)}</p>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={handlePayNow} disabled={isLoading} className={`bg-emerald-500 text-white px-5 py-2.5 rounded-full font-bold text-xs transition-transform active:scale-95 cursor-pointer disabled:opacity-50`}>
-                {isLoading ? (lang === 'vi' ? 'Đang xử lý...' : 'Processing...') : (lang === 'vi' ? 'Trả tiền' : 'Pay')}
+        {/* mobile bottom sheet - expandable */}
+        {(totalItems > 0 || Object.keys(placedOrderCart).length > 0) && (
+          <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden">
+            {/* Drag handle + expand button */}
+            <div className="bg-zinc-900/95 border-t border-white/5 backdrop-blur-lg">
+              {/* Nút kéo/mở rộng */}
+              <button
+                onClick={() => setMobileCartOpen(v => !v)}
+                className="w-full flex flex-col items-center py-1.5"
+              >
+                <div className="w-10 h-1 bg-white/20 rounded-full mb-1" />
+                <div className="flex items-center gap-1 text-zinc-400">
+                  {mobileCartOpen ? (
+                    <>
+                      <span className="text-[10px] uppercase font-bold tracking-widest">{lang === 'vi' ? 'Thu lại' : 'Collapse'}</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 15l-6-6-6 6"/></svg>
+                    </>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                      <span className="text-[10px] uppercase font-bold tracking-widest">{lang === 'vi' ? 'Xem đơn' : 'View order'}</span>
+                    </>
+                  )}
+                </div>
               </button>
-              <button disabled={isLoading || cartEntries.length === 0} onClick={placeOrder} className={`bg-orange-500 text-white px-5 py-2.5 rounded-full font-bold text-xs transition-transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}>
-                {isLoading ? '...' : ui[lang].btn}
-              </button>
+
+              {/* Collapsed: summary bar */}
+              {!mobileCartOpen && (
+                <div className="flex justify-between items-center px-4 pb-3">
+                  <div>
+                    <p className="text-xs opacity-50 uppercase tracking-widest">{ui[lang].items}: {displayOrderItemsCount}</p>
+                    <p className="font-black text-lg">{formatCurrency(displayGrandTotal)}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handlePayNow} disabled={isLoading} className={`bg-emerald-500 text-white px-5 py-2.5 rounded-full font-bold text-xs transition-transform active:scale-95 cursor-pointer disabled:opacity-50`}>
+                      {isLoading ? (lang === 'vi' ? '...' : '...') : (lang === 'vi' ? 'THANH TOÁN' : 'PAY')}
+                    </button>
+                    <button disabled={isLoading || cartEntries.length === 0} onClick={placeOrder} className={`bg-orange-500 text-white px-5 py-2.5 rounded-full font-bold text-xs transition-transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}>
+                      {isLoading ? '...' : ui[lang].btn}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Expanded: order sheet */}
+            {mobileCartOpen && (
+              <div className="bg-zinc-900/98 backdrop-blur-xl border-t border-white/10 max-h-[55vh] overflow-y-auto">
+                <div className="px-4 py-4 space-y-3">
+
+                  {/* Đơn đã đặt */}
+                  {Object.keys(placedOrderCart).length > 0 && (
+                    <div className="border border-emerald-500/30 rounded-2xl p-3 bg-emerald-950/20">
+                      <p className="text-[10px] uppercase font-bold tracking-widest mb-2 text-emerald-400">✅ {lang === 'vi' ? 'Đơn đã đặt' : 'Placed Orders'}</p>
+                      {Object.entries(placedOrderCart).map(([id, qty]) => {
+                        const item = menuItems.find(m => m.id === id);
+                        if (!item) return null;
+                        return (
+                          <div key={id} className="flex justify-between text-sm text-zinc-300 mb-1">
+                            <span>{lang === 'vi' ? item.nameVi : item.nameEn}</span>
+                            <span className="font-bold text-emerald-400">x{qty}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Đơn mới */}
+                  {cartEntries.length > 0 && (
+                    <div className="border border-orange-500/30 rounded-2xl p-3 bg-orange-950/20">
+                      <p className="text-[10px] uppercase font-bold tracking-widest mb-2 text-orange-400">🛒 {lang === 'vi' ? 'Đơn mới' : 'New Order'}</p>
+                      {cartEntries.map(([id, qty]) => {
+                        const item = menuItems.find(m => m.id === id);
+                        if (!item) return null;
+                        return (
+                          <div key={id} className="flex justify-between items-center text-sm mb-2">
+                            <div>
+                              <p className="font-bold text-zinc-200">{lang === 'vi' ? item.nameVi : item.nameEn}</p>
+                              <p className="text-orange-500 font-black text-xs">{formatCurrency(item.price * qty)}</p>
+                            </div>
+                            <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1">
+                              <button onClick={() => updateQty(id, -1)} className="p-1"><Minus size={12} /></button>
+                              <span className="text-xs font-black w-4 text-center">{qty}</span>
+                              <button onClick={() => updateQty(id, 1)} className="p-1"><Plus size={12} /></button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Tổng cộng */}
+                  <div className="border-t border-white/10 pt-3">
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-[10px] uppercase opacity-50 tracking-widest">{ui[lang].items}: {displayOrderItemsCount}</p>
+                        <p className="text-xs opacity-60">({lang === 'vi' ? 'Tổng cộng' : 'Grand total'})</p>
+                      </div>
+                      <p className="text-2xl font-black text-orange-500">{formatCurrency(displayGrandTotal)}</p>
+                    </div>
+                  </div>
+
+                  {/* Nút hành động */}
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={handlePayNow} disabled={isLoading} className={`flex-1 bg-emerald-500 text-white py-3.5 rounded-2xl font-bold text-xs uppercase tracking-widest transition-transform active:scale-95 disabled:opacity-50`}>
+                      {isLoading ? (lang === 'vi' ? '...' : '...') : (lang === 'vi' ? 'THANH TOÁN' : 'PAY')}
+                    </button>
+                    <button disabled={isLoading || cartEntries.length === 0} onClick={placeOrder} className={`flex-1 bg-orange-500 text-white py-3.5 rounded-2xl font-bold text-xs uppercase tracking-widest transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed`}>
+                      {isLoading ? '...' : ui[lang].btn}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
