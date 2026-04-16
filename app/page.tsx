@@ -763,13 +763,14 @@ export default function RestaurantMenu() {
               <button
                 disabled={isLoading || cartEntries.length === 0}
                 onClick={placeOrder}
-                className={`w-full py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95 ${
+                className={`w-full py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95 cursor-pointer ${
                   isLoading
                     ? 'opacity-50 bg-zinc-700 text-zinc-400'
                     : cartEntries.length === 0
-                    ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
-                    : 'bg-orange-500 text-white shadow-orange-950/30 hover:bg-orange-400'
+                    ? 'opacity-50 bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                    : 'bg-orange-500 text-white shadow-orange-950/30 hover:bg-orange-400 hover:shadow-orange-500/20'
                 }`}
+                style={{ display: 'block', width: '100%', pointerEvents: 'auto' }}
               >
                 {isLoading
                   ? (lang === 'vi' ? 'ĐANG XỬ LÝ...' : 'PROCESSING...')
@@ -782,11 +783,12 @@ export default function RestaurantMenu() {
               <button
                 disabled={isLoading}
                 onClick={handlePayNow}
-                className={`w-full py-3 rounded-[2rem] font-bold text-[10px] uppercase tracking-widest shadow-lg transition-all active:scale-95 ${
+                className={`w-full py-3 rounded-[2rem] font-bold text-[10px] uppercase tracking-widest shadow-lg transition-all active:scale-95 cursor-pointer ${
                   isLoading
                     ? 'opacity-50 bg-zinc-700 text-zinc-400'
-                    : 'bg-emerald-500 text-white shadow-emerald-950/20 hover:bg-emerald-400'
+                    : 'bg-emerald-500 text-white shadow-emerald-950/20 hover:bg-emerald-400 hover:shadow-emerald-500/20'
                 }`}
+                style={{ display: 'block', width: '100%', pointerEvents: 'auto' }}
               >
                 {isLoading
                   ? (lang === 'vi' ? 'ĐANG CHỜ...' : 'WAITING...')
