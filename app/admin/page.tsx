@@ -2146,11 +2146,13 @@ const PaymentMethodsCompactPanel: React.FC<{
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    const finalName = draft.name.trim() || draft.bankName.trim() || draft.providerName.trim() || (lang === 'vi' ? 'Phương thức thanh toán' : 'Payment Method');
+    // Tên hiển thị = tên ngân hàng (nếu có), không cần field riêng
+    const finalName = draft.bankName.trim() || draft.accountName.trim() || draft.providerName.trim() || (lang === 'vi' ? 'Phương thức thanh toán' : 'Payment Method');
+    const saveName = draft.name.trim() || finalName;
 
     const nextMethod: PaymentMethod = {
       id: selectedId || `${Date.now()}`,
-      name: finalName,
+      name: saveName, // tên hiển thị = bankName hoặc name field
       type: draft.type,
       bankName: draft.bankName.trim(),
       accountName: draft.accountName.trim(),
@@ -2312,25 +2314,7 @@ const PaymentMethodsCompactPanel: React.FC<{
         {/* ── BODY ── */}
         <div className="space-y-6 p-6 sm:p-8">
 
-          {/* ── SECTION 1: Tên hiển thị ── */}
-          <section className={`rounded-[24px] border p-5 sm:p-6 ${isDark ? 'border-orange-500/20 bg-orange-500/5' : 'border-orange-200 bg-orange-50/50'}`}>
-            <p className={`text-xs font-semibold uppercase tracking-[0.28em] ${isDark ? 'text-orange-400' : 'text-orange-700'}`}>
-              {lang === 'vi' ? 'Tên hiển thị' : 'Display Name'}
-            </p>
-            <div className="mt-3">
-              <input
-                value={draft.name}
-                onChange={e => setField('name', e.target.value)}
-                placeholder={lang === 'vi' ? 'VD: Ngân hàng Vietcombank, Ví MoMo...' : 'e.g. Vietcombank, MoMo Wallet...'}
-                className={`w-full rounded-2xl border px-5 py-3.5 text-base outline-none transition focus:border-orange-400 ${inputTone}`}
-              />
-              <p className={`mt-2 text-xs italic ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
-                {lang === 'vi' ? '* Đây là tên khách hàng sẽ thấy khi chọn phương thức thanh toán.' : '* This is the name customers see when selecting a payment method.'}
-              </p>
-            </div>
-          </section>
-
-          {/* ── SECTION 2: Thông tin banking ── */}
+          {/* ── SECTION 1: Thông tin thanh toán (Tên hiển thị + Banking gộp lại) ── */}
           <section className={`rounded-[24px] border p-5 sm:p-6 ${bankSectionTone}`}>
             <p className={`text-xs font-semibold uppercase tracking-[0.28em] ${isDark ? 'text-blue-200/80' : 'text-blue-700'}`}>
               {lang === 'vi' ? 'Thông tin chuyển khoản' : 'Transfer Details'}
@@ -2459,15 +2443,7 @@ const PaymentMethodsCompactPanel: React.FC<{
                   />
                 </div>
 
-                {draft.qrImage && (
-                  <div className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm ${isDark ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    {lang === 'vi' ? 'Đã chọn ảnh QR. Nhấn ✕ để xóa.' : 'QR image selected. Click ✕ to remove.'}
-                  </div>
-                )}
-              </div>
+                </div>
             </div>
           </section>
         </div>
