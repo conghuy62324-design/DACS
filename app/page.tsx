@@ -269,8 +269,8 @@ export default function RestaurantMenu() {
       ...prev,
       [id]: Math.min((prev[id] || 0) + 1, available)
     }));
-    showToast(lang === 'vi' ? 'Đã thêm vào giỏ' : 'Added to cart');
-  }, [getAvailableStock, lang, showToast]);
+    // No toast on add — show only when order is confirmed
+  }, [getAvailableStock]);
 
   const updateQty = (id: string, delta: number) => {
     setCart(prev => {
@@ -384,8 +384,11 @@ export default function RestaurantMenu() {
         if (ordId) {
           setPlacedOrderIds(prev => [...prev, String(ordId)]);
           setCart({});
-          showToast(lang === 'vi' ? 'Đặt món thành công!' : 'Order placed successfully!');
-          
+          // Show SUCCESS modal with animated checkmark
+          setToastType('success');
+          setToastMsg(lang === 'vi' ? 'Đặt món thành công!' : 'Order placed!');
+          window.setTimeout(() => setToastMsg(''), 2500);
+
           const newStock = { ...inventoryStock };
           cartEntries.forEach(([id, qty]) => {
             if (newStock[id]) newStock[id].sold += qty;
@@ -401,7 +404,7 @@ export default function RestaurantMenu() {
           if (tRes.ok) {
             const currentTables = await tRes.json() as any[];
             const next = currentTables.map(tbl => {
-              if (normalizeSeatValue(tbl.table) === normalizeSeatValue(tableInfo.table) && 
+              if (normalizeSeatValue(tbl.table) === normalizeSeatValue(tableInfo.table) &&
                   normalizeSeatValue(tbl.floor) === normalizeSeatValue(tableInfo.floor)) {
                 return { ...tbl, status: 'ordering' };
               }
@@ -415,24 +418,30 @@ export default function RestaurantMenu() {
           }
           return data?.order || null;
         } else {
-          showToast(lang === 'vi' ? 'Không nhận được phản hồi từ server' : 'No response from server', 'error');
+          setToastType('error');
+          setToastMsg(lang === 'vi' ? 'Không nhận được phản hồi từ server' : 'No response from server');
+          window.setTimeout(() => setToastMsg(''), 2500);
         }
       } else {
         let errorMsg = lang === 'vi' ? 'Đặt món thất bại' : 'Order failed';
         try {
           const errData = await res.json();
           if (errData?.error) errorMsg = errData.error;
-        } catch {}
-        showToast(errorMsg, 'error');
+        } catch { }
+        setToastType('error');
+        setToastMsg(errorMsg);
+        window.setTimeout(() => setToastMsg(''), 2500);
       }
     } catch (e) {
       console.error(e);
-      showToast(lang === 'vi' ? 'Lỗi kết nối, vui lòng thử lại' : 'Connection error, please try again', 'error');
+      setToastType('error');
+      setToastMsg(lang === 'vi' ? 'Lỗi kết nối, vui lòng thử lại' : 'Connection error, please try again');
+      window.setTimeout(() => setToastMsg(''), 2500);
     } finally {
       setIsLoading(false);
     }
     return null;
-  }, [tableInfo, totalItems, customerName, customerPhone, cartEntries, totalPrice, lang, showToast, inventoryStock]);
+  }, [tableInfo, totalItems, customerName, customerPhone, cartEntries, totalPrice, lang, inventoryStock]);
 
   const handlePayNow = useCallback(async () => {
     if (isLoading) return;
@@ -518,23 +527,30 @@ export default function RestaurantMenu() {
       <div className="max-w-7xl mx-auto p-4 lg:p-10 flex flex-col lg:flex-row gap-10">
         {toastMsg && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-            <div className={`rounded-[2rem] border-2 p-8 flex flex-col items-center justify-center gap-5 shadow-2xl animate-in zoom-in-95 duration-300 ${
+            <div className={`rounded-[2rem] border-2 p-10 flex flex-col items-center justify-center gap-6 shadow-2xl animate-in zoom-in-95 duration-300 ${
               toastType === 'success'
                 ? 'border-emerald-400 bg-emerald-950/95 text-emerald-100'
                 : 'border-red-400 bg-red-950/95 text-red-100'
             }`}>
-              {/* Icon */}
-              <div className={`flex h-20 w-20 items-center justify-center rounded-full ${
+              {/* Animated checkmark circle */}
+              <div className={`relative flex h-24 w-24 items-center justify-center rounded-full ${
                 toastType === 'success'
                   ? 'bg-emerald-500 text-white'
                   : 'bg-red-500 text-white'
               }`}>
                 {toastType === 'success' ? (
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+                  <>
+                    {/* Rotating ring */}
+                    <div className="absolute inset-0 rounded-full border-4 border-emerald-300 opacity-30" />
+                    {/* Checkmark SVG with draw animation */}
+                    <svg className="w-12 h-12 animate-[checkDraw_0.6s_ease-out_forwards]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    {/* Pulse rings */}
+                    <div className="absolute inset-0 rounded-full bg-emerald-500 animate-[ping_1s_ease-out_0.3s_infinite]" style={{opacity:0.3}} />
+                  </>
                 ) : (
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10" />
                     <line x1="15" y1="9" x2="9" y2="15" />
                     <line x1="9" y1="9" x2="15" y2="15" />
@@ -542,7 +558,7 @@ export default function RestaurantMenu() {
                 )}
               </div>
               {/* Message */}
-              <p className="text-xl font-bold text-center">{toastMsg}</p>
+              <p className="text-2xl font-black text-center">{toastMsg}</p>
             </div>
           </div>
         )}
