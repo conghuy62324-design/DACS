@@ -361,12 +361,12 @@ export default function RestaurantMenu() {
   const canPayNow = totalItems > 0;
 
   const placeOrder = useCallback(async () => {
-    if (!tableInfo || totalItems === 0) return null;
+    if (totalItems === 0) return null;
     setIsLoading(true);
     try {
       const payload = {
-        table: tableInfo.table,
-        floor: tableInfo.floor,
+        table: tableInfo?.table || '',
+        floor: tableInfo?.floor || '',
         customer: customerName,
         phone: customerPhone,
         items: cartEntries.map(([id, qty]) => ({ id, qty })),
@@ -387,7 +387,8 @@ export default function RestaurantMenu() {
           // Show SUCCESS modal with animated checkmark
           setToastType('success');
           setToastMsg(lang === 'vi' ? 'Đặt món thành công!' : 'Order placed!');
-          window.setTimeout(() => setToastMsg(''), 2500);
+          setIsLoading(false); // Reset immediately so buttons re-enable right after modal shows
+          window.setTimeout(() => setToastMsg(''), 2800);
 
           const newStock = { ...inventoryStock };
           cartEntries.forEach(([id, qty]) => {
@@ -400,21 +401,23 @@ export default function RestaurantMenu() {
           });
           setInventoryStock(newStock);
 
-          const tRes = await fetch('/api/tables');
-          if (tRes.ok) {
-            const currentTables = await tRes.json() as any[];
-            const next = currentTables.map(tbl => {
-              if (normalizeSeatValue(tbl.table) === normalizeSeatValue(tableInfo.table) &&
-                  normalizeSeatValue(tbl.floor) === normalizeSeatValue(tableInfo.floor)) {
-                return { ...tbl, status: 'ordering' };
-              }
-              return tbl;
-            });
-            await fetch('/api/tables', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(next)
-            });
+          if (tableInfo) {
+            const tRes = await fetch('/api/tables');
+            if (tRes.ok) {
+              const currentTables = await tRes.json() as any[];
+              const next = currentTables.map(tbl => {
+                if (normalizeSeatValue(tbl.table) === normalizeSeatValue(tableInfo.table) &&
+                    normalizeSeatValue(tbl.floor) === normalizeSeatValue(tableInfo.floor)) {
+                  return { ...tbl, status: 'ordering' };
+                }
+                return tbl;
+              });
+              await fetch('/api/tables', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(next)
+              });
+            }
           }
           return data?.order || null;
         } else {
@@ -445,16 +448,16 @@ export default function RestaurantMenu() {
 
   const handlePayNow = useCallback(async () => {
     if (isLoading) return;
+    // If cart has items, place order first then open payment
     if (totalItems > 0) {
       const createdOrder = await placeOrder();
       if (createdOrder) setPaymentModalOpen(true);
+      else if (cartEntries.length === 0) setPaymentModalOpen(true); // already sent to kitchen, just open payment
       return;
     }
-    if (tableOpenOrders.length > 0) setPaymentModalOpen(true);
-    else {
-      setPaymentModalOpen(true);
-    }
-  }, [totalItems, tableOpenOrders.length, placeOrder, isLoading]);
+    // Empty cart: just open payment modal
+    setPaymentModalOpen(true);
+  }, [totalItems, cartEntries.length, tableOpenOrders.length, placeOrder, isLoading]);
 
   const scrollToSection = (id: string) => {
     sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -527,28 +530,21 @@ export default function RestaurantMenu() {
       <div className="max-w-7xl mx-auto p-4 lg:p-10 flex flex-col lg:flex-row gap-10">
         {toastMsg && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-            <div className={`rounded-[2rem] border-2 p-10 flex flex-col items-center justify-center gap-6 shadow-2xl animate-in zoom-in-95 duration-300 ${
+            <div className={`rounded-[2rem] border-2 p-10 flex flex-col items-center justify-center gap-6 shadow-2xl animate-success-pop ${
               toastType === 'success'
                 ? 'border-emerald-400 bg-emerald-950/95 text-emerald-100'
                 : 'border-red-400 bg-red-950/95 text-red-100'
             }`}>
-              {/* Animated checkmark circle */}
-              <div className={`relative flex h-24 w-24 items-center justify-center rounded-full ${
+              {/* Animated checkmark/error circle */}
+              <div className={`relative flex h-24 w-24 items-center justify-center rounded-full animate-success-pulse ${
                 toastType === 'success'
                   ? 'bg-emerald-500 text-white'
                   : 'bg-red-500 text-white'
               }`}>
                 {toastType === 'success' ? (
-                  <>
-                    {/* Rotating ring */}
-                    <div className="absolute inset-0 rounded-full border-4 border-emerald-300 opacity-30" />
-                    {/* Checkmark SVG with draw animation */}
-                    <svg className="w-12 h-12 animate-[checkDraw_0.6s_ease-out_forwards]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    {/* Pulse rings */}
-                    <div className="absolute inset-0 rounded-full bg-emerald-500 animate-[ping_1s_ease-out_0.3s_infinite]" style={{opacity:0.3}} />
-                  </>
+                  <svg className="w-12 h-12 animate-[checkDraw_0.6s_ease-out_forwards]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
                 ) : (
                   <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10" />

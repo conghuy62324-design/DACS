@@ -118,7 +118,7 @@ export default function StaffOrderPage() {
   const [activeCategoryId, setActiveCategoryId] = useState('');
   const [staffSession, setStaffSession] = useState<StaffSession | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
-  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPhone, setLoginPhone] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -166,14 +166,18 @@ export default function StaffOrderPage() {
   }, [cart]);
 
   useEffect(() => {
-    setInventoryStock(readInventoryStock());
-    const syncInventory = () => setInventoryStock(readInventoryStock());
-    window.addEventListener('storage', syncInventory);
-    const interval = window.setInterval(syncInventory, 2000);
-    return () => {
-      window.removeEventListener('storage', syncInventory);
-      window.clearInterval(interval);
+    const fetchInventory = async () => {
+      try {
+        const res = await fetch('/api/inventory');
+        if (res.ok) {
+          const data = await res.json();
+          setInventoryStock(data || {});
+        }
+      } catch {}
     };
+    fetchInventory();
+    const interval = window.setInterval(fetchInventory, 5000);
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -461,7 +465,7 @@ export default function StaffOrderPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: loginUsername, password: loginPassword, role: 'staff' }),
+        body: JSON.stringify({ phone: loginPhone, password: loginPassword, role: 'staff' }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -530,10 +534,16 @@ export default function StaffOrderPage() {
       })();
       setCart({});
       localStorage.removeItem('staffCart');
-      showToast(contextMode === 'table' ? 'Đã gửi món mới xuống bếp cho bàn này' : 'Đã gửi order cho bếp');
+      // Show SUCCESS modal with animated checkmark
+      setToastType('success');
+      setToastMsg('Đã gửi order cho bếp!');
+      setIsLoading(false); // Reset immediately so buttons re-enable right after modal shows
+      window.setTimeout(() => setToastMsg(''), 2800);
     } catch (error) {
       console.error(error);
-      showToast('Lỗi đặt món', 'error');
+      setToastType('error');
+      setToastMsg('Lỗi đặt món!');
+      window.setTimeout(() => setToastMsg(''), 2500);
     } finally {
       setIsLoading(false);
     }
@@ -659,8 +669,8 @@ export default function StaffOrderPage() {
               {authError && <div className="mt-5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{authError}</div>}
               <form onSubmit={handleLogin} className="mt-8 space-y-5">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-200">Tên đăng nhập</label>
-                  <input value={loginUsername} onChange={e => setLoginUsername(e.target.value)} autoComplete="username" className="w-full rounded-2xl border border-zinc-700 bg-black/40 px-4 py-4 text-white outline-none transition focus:border-orange-500" />
+                  <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'Số điện thoại' : 'Phone number'}</label>
+                  <input value={loginPhone} onChange={e => setLoginPhone(e.target.value)} autoComplete="tel" inputMode="tel" placeholder="0912345678" className="w-full rounded-2xl border border-zinc-700 bg-black/40 px-4 py-4 text-white outline-none transition focus:border-orange-500" />
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-zinc-200">Mật khẩu</label>
@@ -684,8 +694,31 @@ export default function StaffOrderPage() {
       style={{ paddingBottom: totalItems > 0 ? '4rem' : undefined }}
     >
       {toastMsg && (
-        <div className={`fixed bottom-5 right-5 z-50 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-2xl backdrop-blur-xl ${toastType === 'error' ? 'border-red-500/30 bg-red-500/15 text-red-300' : 'border-emerald-500/30 bg-emerald-500/15 text-emerald-200'}`}>
-          {toastMsg}
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className={`rounded-[2rem] border-2 p-10 flex flex-col items-center justify-center gap-6 shadow-2xl animate-success-pop ${
+            toastType === 'success'
+              ? 'border-emerald-400 bg-emerald-950/95 text-emerald-100'
+              : 'border-red-400 bg-red-950/95 text-red-100'
+          }`}>
+            <div className={`relative flex h-24 w-24 items-center justify-center rounded-full animate-success-pulse ${
+              toastType === 'success'
+                ? 'bg-emerald-500 text-white'
+                : 'bg-red-500 text-white'
+            }`}>
+              {toastType === 'success' ? (
+                <svg className="w-12 h-12 animate-[checkDraw_0.6s_ease-out_forwards]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="15" y1="9" x2="9" y2="15" />
+                  <line x1="9" y1="9" x2="15" y2="15" />
+                </svg>
+              )}
+            </div>
+            <p className="text-2xl font-black text-center">{toastMsg}</p>
+          </div>
         </div>
       )}
 
