@@ -637,10 +637,10 @@ export default function RestaurantMenu() {
               <p className="font-black text-lg">{formatCurrency(displayGrandTotal)}</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={handlePayNow} disabled={isLoading} className={`bg-emerald-500 text-white px-5 py-2.5 rounded-full font-bold text-xs transition-transform active:scale-95 ${isLoading ? 'opacity-50' : ''}`}>
+              <button onClick={handlePayNow} disabled={isLoading} className={`bg-emerald-500 text-white px-5 py-2.5 rounded-full font-bold text-xs transition-transform active:scale-95 cursor-pointer disabled:opacity-50`}>
                 {isLoading ? (lang === 'vi' ? 'Đang xử lý...' : 'Processing...') : (lang === 'vi' ? 'Trả tiền' : 'Pay')}
               </button>
-              <button disabled={isLoading} onClick={placeOrder} className={`bg-orange-500 text-white px-5 py-2.5 rounded-full font-bold text-xs transition-transform active:scale-95 ${isLoading ? 'opacity-50' : ''}`}>
+              <button disabled={isLoading || cartEntries.length === 0} onClick={placeOrder} className={`bg-orange-500 text-white px-5 py-2.5 rounded-full font-bold text-xs transition-transform active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}>
                 {isLoading ? '...' : ui[lang].btn}
               </button>
             </div>
@@ -763,14 +763,13 @@ export default function RestaurantMenu() {
               <button
                 disabled={isLoading || cartEntries.length === 0}
                 onClick={placeOrder}
-                className={`w-full py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95 cursor-pointer ${
+                className={`w-full py-5 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
                   isLoading
-                    ? 'opacity-50 bg-zinc-700 text-zinc-400'
+                    ? 'bg-zinc-700 text-zinc-400'
                     : cartEntries.length === 0
-                    ? 'opacity-50 bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                    ? 'bg-zinc-800 text-zinc-500'
                     : 'bg-orange-500 text-white shadow-orange-950/30 hover:bg-orange-400 hover:shadow-orange-500/20'
                 }`}
-                style={{ display: 'block', width: '100%', pointerEvents: 'auto' }}
               >
                 {isLoading
                   ? (lang === 'vi' ? 'ĐANG XỬ LÝ...' : 'PROCESSING...')
@@ -783,12 +782,11 @@ export default function RestaurantMenu() {
               <button
                 disabled={isLoading}
                 onClick={handlePayNow}
-                className={`w-full py-3 rounded-[2rem] font-bold text-[10px] uppercase tracking-widest shadow-lg transition-all active:scale-95 cursor-pointer ${
+                className={`w-full py-3 rounded-[2rem] font-bold text-[10px] uppercase tracking-widest shadow-lg transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
                   isLoading
-                    ? 'opacity-50 bg-zinc-700 text-zinc-400'
+                    ? 'bg-zinc-700 text-zinc-400'
                     : 'bg-emerald-500 text-white shadow-emerald-950/20 hover:bg-emerald-400 hover:shadow-emerald-500/20'
                 }`}
-                style={{ display: 'block', width: '100%', pointerEvents: 'auto' }}
               >
                 {isLoading
                   ? (lang === 'vi' ? 'ĐANG CHỜ...' : 'WAITING...')
