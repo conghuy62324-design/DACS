@@ -354,9 +354,14 @@ export default function RestaurantMenu() {
     0
   );
 
-  const displayOrderItemsCount = totalItems + existingOrderItemsCount;
+  const displayOrderItemsCount = totalItems + existingOrderItemsCount + Object.values(placedOrderCart).reduce((s, qty) => s + qty, 0);
+  // Tổng tiền = giỏ mới + đơn đã đặt (placedOrderCart) + đơn từ bếp (visibleKitchenOrders)
+  const placedCartTotal = Object.entries(placedOrderCart).reduce((sum, [id, qty]) => {
+    const item = menuItems.find(m => m.id === id);
+    return sum + (item ? item.price * qty : 0);
+  }, 0);
   const existingOrdersTotal = visibleKitchenOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
-  const displayGrandTotal = totalPrice + existingOrdersTotal;
+  const displayGrandTotal = totalPrice + placedCartTotal + existingOrdersTotal;
   const featuredPaymentMethod = paymentMethods[0] || null;
 
   // canPayNow: chỉ cho thanh toán khi có món trong giỏ
