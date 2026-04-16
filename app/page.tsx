@@ -99,6 +99,8 @@ export default function RestaurantMenu() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState('');
   const [placedOrderIds, setPlacedOrderIds] = useState<string[]>([]);
+  // Local cart copy of items that were already placed (stays visible in sidebar)
+  const [placedOrderCart, setPlacedOrderCart] = useState<Record<string, number>>({});
 
   const [tableInfo, setTableInfo] = useState<TableInfo | null>(null);
   const [customerName, setCustomerName] = useState('');
@@ -383,6 +385,14 @@ export default function RestaurantMenu() {
         const ordId = data?.order?.id;
         if (ordId) {
           setPlacedOrderIds(prev => [...prev, String(ordId)]);
+          // Keep cart visible in sidebar as "Đơn đã đặt"
+          setPlacedOrderCart(prev => {
+            const next = { ...prev };
+            cartEntries.forEach(([id, qty]) => {
+              next[id] = (next[id] || 0) + qty;
+            });
+            return next;
+          });
           setCart({});
           // Show SUCCESS modal with animated checkmark
           setToastType('success');
@@ -699,11 +709,30 @@ export default function RestaurantMenu() {
             
             <div className="flex-1 overflow-y-auto space-y-4">
 
-              {/* ── GIỎ MỚI (chưa gửi bếp) ── */}
+              {/* ── ĐƠN ĐÃ ĐẶT ── */}
+              {Object.keys(placedOrderCart).length > 0 && (
+                <div className="border border-emerald-500/30 rounded-2xl p-4 bg-emerald-950/20">
+                  <p className="text-[10px] uppercase font-bold tracking-widest mb-3 text-emerald-400 flex items-center gap-1">
+                    <span>✅</span> {lang === 'vi' ? 'Đơn đã đặt' : 'Placed Orders'}
+                  </p>
+                  {Object.entries(placedOrderCart).map(([id, qty]) => {
+                    const item = menuItems.find(m => m.id === id);
+                    if (!item) return null;
+                    return (
+                      <div key={id} className="flex justify-between items-center text-sm mb-2 text-zinc-300">
+                        <span>{lang === 'vi' ? item.nameVi : item.nameEn}</span>
+                        <span className="font-bold text-emerald-400">x{qty}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── ĐƠN MỚI (chưa gửi bếp) ── */}
               {cartEntries.length > 0 && (
-                <div>
-                  <p className="text-[10px] uppercase font-bold tracking-widest mb-3 text-orange-400/80">
-                    {lang === 'vi' ? '🛒 Giỏ mới' : '🛒 New Cart'}
+                <div className="border border-orange-500/30 rounded-2xl p-4 bg-orange-950/20">
+                  <p className="text-[10px] uppercase font-bold tracking-widest mb-3 text-orange-400 flex items-center gap-1">
+                    <span>🛒</span> {lang === 'vi' ? 'Đơn mới' : 'New Order'}
                   </p>
                   {cartEntries.map(([id, qty]) => {
                     const item = menuItems.find(m => m.id === id);
@@ -725,11 +754,11 @@ export default function RestaurantMenu() {
                 </div>
               )}
 
-              {/* ── ĐÃ GỬI BẾP (đơn đang chờ / đang nấu) ── */}
+              {/* ── ĐÃ GỬI BẾP (từ API — đơn đang xử lý) ── */}
               {groupedKitchenItems.length > 0 && (
-                <div className={`border-t border-white/10 pt-4 ${cartEntries.length > 0 ? 'opacity-80' : ''}`}>
-                  <p className="text-[10px] uppercase font-bold tracking-widest mb-3 text-emerald-400/80">
-                    {lang === 'vi' ? '✅ Đã gửi bếp' : '✅ Sent to kitchen'}
+                <div className={`border border-white/10 rounded-2xl p-4 ${Object.keys(placedOrderCart).length > 0 || cartEntries.length > 0 ? '' : ''}`}>
+                  <p className="text-[10px] uppercase font-bold tracking-widest mb-3 text-cyan-400/80">
+                    {lang === 'vi' ? '🔔 Bếp đang xử lý' : '🔔 Kitchen processing'}
                   </p>
                   {groupedKitchenItems.map(item => (
                     <div key={item.id} className="flex justify-between items-center text-xs mb-1 text-zinc-400">
@@ -741,7 +770,7 @@ export default function RestaurantMenu() {
               )}
 
               {/* ── GIỎ TRỐNG ── */}
-              {cartEntries.length === 0 && groupedKitchenItems.length === 0 && (
+              {cartEntries.length === 0 && Object.keys(placedOrderCart).length === 0 && groupedKitchenItems.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="text-5xl mb-4">🍽️</div>
                   <p className="text-zinc-500 font-medium">{lang === 'vi' ? 'Giỏ hàng trống' : 'Cart is empty'}</p>
@@ -751,7 +780,7 @@ export default function RestaurantMenu() {
             </div>
 
             {/* ── NÚT HÀNH ĐỘNG ── */}
-            {(cartEntries.length > 0 || groupedKitchenItems.length > 0) && (
+            {(cartEntries.length > 0 || Object.keys(placedOrderCart).length > 0) && (
             <div className="mt-6 pt-6 border-t border-white/10 space-y-3">
               {/* Tổng tiền */}
               <div className="flex justify-between items-end mb-2">
@@ -759,7 +788,7 @@ export default function RestaurantMenu() {
                 <span className="text-3xl font-black text-orange-500">{formatCurrency(displayGrandTotal)}</span>
               </div>
 
-              {/* Nút Đặt món — SÁNG khi có món mới, TỐI khi đã gửi bếp xong */}
+              {/* Nút Đặt món — CAM sáng khi có món mới, XANH khi chỉ còn đơn đã đặt */}
               <button
                 disabled={isLoading || cartEntries.length === 0}
                 onClick={placeOrder}
@@ -774,7 +803,7 @@ export default function RestaurantMenu() {
                 {isLoading
                   ? (lang === 'vi' ? 'ĐANG XỬ LÝ...' : 'PROCESSING...')
                   : cartEntries.length === 0
-                  ? (lang === 'vi' ? 'ĐÃ GỬI BẾP' : 'SENT TO KITCHEN')
+                  ? (lang === 'vi' ? 'ĐÃ ĐẶT RỒI' : 'ALREADY PLACED')
                   : ui[lang].btn}
               </button>
 
