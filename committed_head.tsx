@@ -230,13 +230,13 @@ const TableQrPanel: React.FC<{
     const normalizedFloor = floor.trim();
     const normalizedTable = tableNumber.trim().padStart(2, '0');
     if (!normalizedTable || !normalizedFloor) {
-      showTableMessage('error', lang === 'vi' ? 'Vui lÃ²ng nh?p s? bÃ n vÃ  t?ng.' : 'Please enter both table number and floor.');
+      showTableMessage('error', lang === 'vi' ? 'Vui l�ng nh?p s? b�n v� t?ng.' : 'Please enter both table number and floor.');
       return;
     }
 
     const id = `${normalizedFloor}-${normalizedTable}`;
     if (tables.some(table => table.id === id)) {
-      showTableMessage('error', lang === 'vi' ? 'BÃ n nÃ y dÃ£ cÃ³ QR r?i.' : 'This table already has a QR code.');
+      showTableMessage('error', lang === 'vi' ? 'B�n n�y d� c� QR r?i.' : 'This table already has a QR code.');
       return;
     }
 
@@ -258,13 +258,13 @@ const TableQrPanel: React.FC<{
 
     saveTables(next);
     setTableNumber('');
-    showTableMessage('success', lang === 'vi' ? `ÃÃ£ t?o QR cho bÃ n ${normalizedTable}, t?ng ${normalizedFloor}.` : `QR created for table ${normalizedTable}, floor ${normalizedFloor}.`);
+    showTableMessage('success', lang === 'vi' ? `�� t?o QR cho b�n ${normalizedTable}, t?ng ${normalizedFloor}.` : `QR created for table ${normalizedTable}, floor ${normalizedFloor}.`);
   };
 
   const regenerateQrs = () => {
     const next = tables.map(table => ({ ...table, qr: makeQrUrl(table.table, table.floor) }));
     saveTables(next);
-    showTableMessage('success', lang === 'vi' ? 'ÃÃ£ c?p nh?t l?i toÃ n b? link QR.' : 'All QR links were refreshed.');
+    showTableMessage('success', lang === 'vi' ? '�� c?p nh?t l?i to�n b? link QR.' : 'All QR links were refreshed.');
   };
 
   const toggleActive = (id: string) => {
@@ -277,7 +277,7 @@ const TableQrPanel: React.FC<{
 
   const deleteTable = (id: string) => {
     saveTables(tables.filter(table => table.id !== id));
-    showTableMessage('info', lang === 'vi' ? 'ÃÃ£ xÃ³a bÃ n kh?i danh sÃ¡ch QR.' : 'Table removed from QR list.');
+    showTableMessage('info', lang === 'vi' ? '�� x�a b�n kh?i danh s�ch QR.' : 'Table removed from QR list.');
   };
 
   const printTableQr = (table: TableInfo) => {
@@ -304,7 +304,7 @@ const TableQrPanel: React.FC<{
         <body>
           <div class="sheet">
             <div class="badge">HCH RESTO QR</div>
-            <h1 class="title">BÃ n ${table.table}</h1>
+            <h1 class="title">B�n ${table.table}</h1>
             <p class="subtitle">T?ng ${table.floor}</p>
             <img src="${dataUrl}" alt="QR Table ${table.table}" />
             <p class="url">${table.qr}</p>
@@ -355,7 +355,7 @@ const TableQrPanel: React.FC<{
         : 'border-red-200 bg-red-50 text-zinc-900',
       badge: 'bg-red-500 text-white',
       ring: isDark ? 'border-red-500/20 bg-red-500/5' : 'border-red-200 bg-white/70',
-      label: status === 'ordering' ? (lang === 'vi' ? 'Ãang order' : 'Ordering') : (lang === 'vi' ? 'CÃ³ khÃ¡ch' : 'Occupied'),
+      label: status === 'ordering' ? (lang === 'vi' ? '�ang order' : 'Ordering') : (lang === 'vi' ? 'C� kh�ch' : 'Occupied'),
     };
   };
 
@@ -365,13 +365,13 @@ const TableQrPanel: React.FC<{
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="space-y-3">
             <span className="inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
-              {lang === 'vi' ? 'QR bÃ n an' : 'Table QR'}
+              {lang === 'vi' ? 'QR b�n an' : 'Table QR'}
             </span>
             <div>
-              <h2 className="text-3xl font-extrabold text-white">{lang === 'vi' ? 'T?o QR t?ng bÃ n riÃªng l?' : 'Generate QR per table'}</h2>
+              <h2 className="text-3xl font-extrabold text-white">{lang === 'vi' ? 'T?o QR t?ng b�n ri�ng l?' : 'Generate QR per table'}</h2>
               <p className="mt-2 max-w-2xl text-sm text-zinc-400">
                 {lang === 'vi'
-                  ? 'T?o t?ng mÃ£ QR theo s? bÃ n vÃ  t?ng, in ho?c t?i PNG d? dÃ¡n lÃªn t?ng bÃ n. KhÃ¡ch quÃ©t mÃ£ s? m? menu vÃ  th?y Ã´ nh?p thÃ´ng tin tru?c khi d?t mÃ³n.'
+                  ? 'T?o t?ng m� QR theo s? b�n v� t?ng, in ho?c t?i PNG d? d�n l�n t?ng b�n. Kh�ch qu�t m� s? m? menu v� th?y � nh?p th�ng tin tru?c khi d?t m�n.'
                   : 'Create QR codes by table and floor, then print or download PNG files for each table. Guests scanning the code open the menu and see the info popup first.'}
               </p>
             </div>
@@ -379,7 +379,7 @@ const TableQrPanel: React.FC<{
 
           <div className="grid min-w-[280px] grid-cols-2 gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 md:grid-cols-4">
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'T?ng bÃ n' : 'Tables'}</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'T?ng b�n' : 'Tables'}</p>
               <p className="mt-2 text-3xl font-bold text-white">{tables.length}</p>
             </div>
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
@@ -391,7 +391,7 @@ const TableQrPanel: React.FC<{
               <p className="mt-2 text-3xl font-bold text-cyan-300">{emptyCount}</p>
             </div>
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'CÃ³ khÃ¡ch' : 'Occupied'}</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'C� kh�ch' : 'Occupied'}</p>
               <p className="mt-2 text-3xl font-bold text-red-300">{occupiedCount}</p>
             </div>
           </div>
@@ -414,21 +414,21 @@ const TableQrPanel: React.FC<{
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.35fr]">
         <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-[0_16px_48px_rgba(0,0,0,0.28)]">
-          <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'ThÃªm bÃ n m?i' : 'Add new table'}</h3>
+          <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'Th�m b�n m?i' : 'Add new table'}</h3>
           <p className="mt-2 text-sm text-zinc-400">
             {lang === 'vi'
-              ? 'Nh?p dÃºng s? bÃ n vÃ  t?ng d? t?o QR riÃªng cho t?ng bÃ n.'
+              ? 'Nh?p d�ng s? b�n v� t?ng d? t?o QR ri�ng cho t?ng b�n.'
               : 'Enter the exact table number and floor to create an individual QR code.'}
           </p>
 
           <div className="mt-6 space-y-4">
             <div>
-              <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'S? bÃ n' : 'Table number'}</label>
+              <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'S? b�n' : 'Table number'}</label>
               <input
                 type="text"
                 value={tableNumber}
                 onChange={e => setTableNumber(e.target.value.replace(/[^\d]/g, ''))}
-                placeholder={lang === 'vi' ? 'VÃ­ d?: 12' : 'Example: 12'}
+                placeholder={lang === 'vi' ? 'V� d?: 12' : 'Example: 12'}
                 className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
               />
             </div>
@@ -449,7 +449,7 @@ const TableQrPanel: React.FC<{
               onClick={createTable}
               className="rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-500"
             >
-              {lang === 'vi' ? 'T?o QR cho bÃ n nÃ y' : 'Create table QR'}
+              {lang === 'vi' ? 'T?o QR cho b�n n�y' : 'Create table QR'}
             </button>
             <button
               type="button"
@@ -472,10 +472,10 @@ const TableQrPanel: React.FC<{
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex-1">
-                  <div className="text-2xl font-black">{lang === 'vi' ? 'BÃ n' : 'Table'} {table.table}</div>
+                  <div className="text-2xl font-black">{lang === 'vi' ? 'B�n' : 'Table'} {table.table}</div>
                   <div className={`mt-1 text-sm ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>{lang === 'vi' ? 'T?ng' : 'Floor'} {table.floor}</div>
                   <div className="mt-2 text-sm">
-                    {lang === 'vi' ? 'Tr?ng thÃ¡i' : 'Status'}: <span className="font-semibold">{tone.label}</span>
+                    {lang === 'vi' ? 'Tr?ng th�i' : 'Status'}: <span className="font-semibold">{tone.label}</span>
                   </div>
                 </div>
 
@@ -485,7 +485,7 @@ const TableQrPanel: React.FC<{
                     onClick={() => toggleActive(table.id)}
                     className={`rounded-full px-3 py-2 text-xs font-semibold ${table.active ? tone.badge : 'bg-zinc-500 text-white'}`}
                   >
-                    {table.active ? (lang === 'vi' ? 'Ho?t d?ng' : 'Active') : (lang === 'vi' ? 'T?m khoÃ¡' : 'Inactive')}
+                    {table.active ? (lang === 'vi' ? 'Ho?t d?ng' : 'Active') : (lang === 'vi' ? 'T?m kho�' : 'Inactive')}
                   </button>
                   <select
                     value={table.status}
@@ -493,8 +493,8 @@ const TableQrPanel: React.FC<{
                     className={`rounded-2xl border px-3 py-2 text-sm ${isDark ? 'border-zinc-600 bg-zinc-800 text-white' : 'border-zinc-300 bg-white text-zinc-900'}`}
                   >
                     <option value="empty">{lang === 'vi' ? 'Tr?ng' : 'Empty'}</option>
-                    <option value="occupied">{lang === 'vi' ? 'CÃ³ khÃ¡ch' : 'Occupied'}</option>
-                    <option value="ordering">{lang === 'vi' ? 'Ãang order' : 'Ordering'}</option>
+                    <option value="occupied">{lang === 'vi' ? 'C� kh�ch' : 'Occupied'}</option>
+                    <option value="ordering">{lang === 'vi' ? '�ang order' : 'Ordering'}</option>
                   </select>
                 </div>
               </div>
@@ -530,7 +530,7 @@ const TableQrPanel: React.FC<{
                     onClick={() => deleteTable(table.id)}
                     className="rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
                   >
-                    {lang === 'vi' ? 'XÃ³a' : 'Delete'}
+                    {lang === 'vi' ? 'X�a' : 'Delete'}
                   </button>
                 </div>
               </div>
@@ -539,7 +539,7 @@ const TableQrPanel: React.FC<{
 
           {tables.length === 0 && (
             <div className="md:col-span-2 rounded-3xl border border-dashed border-zinc-700 bg-zinc-900/50 p-12 text-center text-zinc-400">
-              {lang === 'vi' ? 'Chua cÃ³ bÃ n nÃ o du?c t?o QR. HÃ£y thÃªm bÃ n d?u tiÃªn ? kh?i bÃªn trÃ¡i.' : 'No QR tables yet. Add your first table from the panel on the left.'}
+              {lang === 'vi' ? 'Chua c� b�n n�o du?c t?o QR. H�y th�m b�n d?u ti�n ? kh?i b�n tr�i.' : 'No QR tables yet. Add your first table from the panel on the left.'}
             </div>
           )}
         </div>
@@ -662,7 +662,7 @@ const ProductsPanel: React.FC<{
     const finalPrice = Number(price);
 
     if (!finalNameVi || !categoryId || !Number.isFinite(finalPrice) || finalPrice <= 0) {
-      setMenuMsg(lang === 'vi' ? 'Vui lÃ²ng nh?p d? tÃªn, danh m?c vÃ  giÃ¡ h?p l?.' : 'Please fill in name, category and a valid price.');
+      setMenuMsg(lang === 'vi' ? 'Vui l�ng nh?p d? t�n, danh m?c v� gi� h?p l?.' : 'Please fill in name, category and a valid price.');
       return;
     }
 
@@ -697,13 +697,13 @@ const ProductsPanel: React.FC<{
           });
         }
       }
-      setMenuMsg(editingId ? (lang === 'vi' ? 'C?p nh?t thÃ nh cÃ´ng' : 'Updated successfully') : (lang === 'vi' ? 'ThÃªm thÃ nh cÃ´ng' : 'Added successfully'));
+      setMenuMsg(editingId ? (lang === 'vi' ? 'C?p nh?t th�nh c�ng' : 'Updated successfully') : (lang === 'vi' ? 'Th�m th�nh c�ng' : 'Added successfully'));
       resetForm(); setShowAddForm(false);
       fetchMenu();
       setTimeout(() => setMenuMsg(''), 2000);
     } else {
       const data = await res.json().catch(() => ({}));
-      setMenuMsg(data.error || (lang === 'vi' ? 'KhÃ´ng th? luu s?n ph?m.' : 'Unable to save product.'));
+      setMenuMsg(data.error || (lang === 'vi' ? 'Kh�ng th? luu s?n ph?m.' : 'Unable to save product.'));
     }
   };
 
@@ -735,14 +735,14 @@ const ProductsPanel: React.FC<{
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-3xl font-bold mb-2">{lang === 'vi' ? 'Qu?n lÃ½ S?n ph?m' : 'Products Management'}</h2>
+          <h2 className="text-3xl font-bold mb-2">{lang === 'vi' ? 'Qu?n l� S?n ph?m' : 'Products Management'}</h2>
           <p className="text-sm opacity-60">{filteredProducts.length} {lang === 'vi' ? 's?n ph?m' : 'products'}</p>
         </div>
         <button
           onClick={() => { resetForm(); setShowAddForm(true); }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition"
         >
-          ? {lang === 'vi' ? 'ThÃªm s?n ph?m' : 'Add Product'}
+          ? {lang === 'vi' ? 'Th�m s?n ph?m' : 'Add Product'}
         </button>
       </div>
 
@@ -751,14 +751,14 @@ const ProductsPanel: React.FC<{
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className={`${isDark ? 'bg-zinc-900' : 'bg-white'} rounded-2xl p-8 w-full max-w-2xl max-h-96 overflow-y-auto`}>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold">{lang === 'vi' ? 'ThÃªm s?n ph?m m?i' : 'Add New Product'}</h3>
+              <h3 className="text-2xl font-bold">{lang === 'vi' ? 'Th�m s?n ph?m m?i' : 'Add New Product'}</h3>
               <button onClick={() => setShowAddForm(false)} className="text-2xl opacity-50 hover:opacity-100">?</button>
             </div>
 
             <form onSubmit={submitProduct} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-2">{lang === 'vi' ? 'TÃªn (VI)' : 'Name (VI)'}</label>
+                  <label className="block text-sm font-semibold mb-2">{lang === 'vi' ? 'T�n (VI)' : 'Name (VI)'}</label>
                   <input
                     value={nameVi}
                     onChange={e => setNameVi(e.target.value)}
@@ -767,7 +767,7 @@ const ProductsPanel: React.FC<{
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2">{lang === 'vi' ? 'TÃªn (EN)' : 'Name (EN)'}</label>
+                  <label className="block text-sm font-semibold mb-2">{lang === 'vi' ? 'T�n (EN)' : 'Name (EN)'}</label>
                   <input
                     value={nameEn}
                     onChange={e => setNameEn(e.target.value)}
@@ -793,7 +793,7 @@ const ProductsPanel: React.FC<{
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2">{lang === 'vi' ? 'GiÃ¡' : 'Price'}</label>
+                  <label className="block text-sm font-semibold mb-2">{lang === 'vi' ? 'Gi�' : 'Price'}</label>
                   <input
                     type="number"
                     value={price}
@@ -803,7 +803,7 @@ const ProductsPanel: React.FC<{
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2">{lang === 'vi' ? 'ÃÃ¡nh giÃ¡' : 'Rating'}</label>
+                  <label className="block text-sm font-semibold mb-2">{lang === 'vi' ? '��nh gi�' : 'Rating'}</label>
                   <input
                     type="number"
                     min="0"
@@ -831,14 +831,14 @@ const ProductsPanel: React.FC<{
                 {image ? (
                   <div className="flex flex-col items-center">
                     <Image src={image} alt="preview" width={80} height={80} unoptimized className="rounded" />
-                    <p className="text-xs mt-2 opacity-60">{lang === 'vi' ? 'KÃ©o th? d? thay d?i' : 'Drag to change'}</p>
+                    <p className="text-xs mt-2 opacity-60">{lang === 'vi' ? 'K�o th? d? thay d?i' : 'Drag to change'}</p>
                   </div>
                 ) : (
                   <div>
-                    <p className="font-semibold mb-1">?? {lang === 'vi' ? 'KÃ©o th? ?nh t?i dÃ¢y' : 'Drag image here'}</p>
+                    <p className="font-semibold mb-1">?? {lang === 'vi' ? 'K�o th? ?nh t?i d�y' : 'Drag image here'}</p>
                     <p className="text-xs opacity-60">{lang === 'vi' ? 'ho?c' : 'or'}</p>
                     <label className="text-blue-500 hover:underline text-sm mt-1 cursor-pointer inline-block">
-                      {lang === 'vi' ? 'ch?n t? mÃ¡y' : 'select from device'}
+                      {lang === 'vi' ? 'ch?n t? m�y' : 'select from device'}
                       <input type="file" accept="image/*" onChange={handleFileInput} className="hidden" />
                     </label>
                   </div>
@@ -851,7 +851,7 @@ const ProductsPanel: React.FC<{
                   disabled={!nameVi.trim() || !categoryId || !price || Number(price) <= 0}
                   className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold transition"
                 >
-                  {lang === 'vi' ? 'ThÃªm' : 'Add'}
+                  {lang === 'vi' ? 'Th�m' : 'Add'}
                 </button>
                 <button
                   type="button"
@@ -872,7 +872,7 @@ const ProductsPanel: React.FC<{
         <div className="flex-1 min-w-64">
           <input
             type="text"
-            placeholder={lang === 'vi' ? 'TÃ¬m theo tÃªn, SKU...' : 'Search by name, SKU...'}
+            placeholder={lang === 'vi' ? 'T�m theo t�n, SKU...' : 'Search by name, SKU...'}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className={`w-full px-4 py-2 rounded-lg border ${isDark ? 'bg-zinc-800 border-zinc-700 text-white' : 'border-zinc-300'}`}
@@ -893,9 +893,9 @@ const ProductsPanel: React.FC<{
           onChange={e => setStatusFilter(e.target.value)}
           className={`px-4 py-2 rounded-lg border ${isDark ? 'bg-zinc-800 border-zinc-700 text-white' : 'border-zinc-300'}`}
         >
-          <option value="">{lang === 'vi' ? 'T?t c? tr?ng thÃ¡i' : 'All status'}</option>
+          <option value="">{lang === 'vi' ? 'T?t c? tr?ng th�i' : 'All status'}</option>
           <option value="active">{lang === 'vi' ? 'Ho?t d?ng' : 'Active'}</option>
-          <option value="inactive">{lang === 'vi' ? 'KhÃ´ng ho?t d?ng' : 'Inactive'}</option>
+          <option value="inactive">{lang === 'vi' ? 'Kh�ng ho?t d?ng' : 'Inactive'}</option>
         </select>
         <button className={`px-4 py-2 rounded-lg font-semibold transition ${isDark ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-zinc-200 hover:bg-zinc-300'}`}>
           ?? {lang === 'vi' ? 'L?c' : 'Filter'}
@@ -912,10 +912,10 @@ const ProductsPanel: React.FC<{
               </th>
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide">{lang === 'vi' ? 'S?n ph?m' : 'Product'}</th>
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide">{lang === 'vi' ? 'Danh m?c' : 'Category'}</th>
-              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide">{lang === 'vi' ? 'GiÃ¡' : 'Price'}</th>
+              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide">{lang === 'vi' ? 'Gi�' : 'Price'}</th>
               <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide">{lang === 'vi' ? 'T?n kho' : 'Stock'}</th>
-              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide">{lang === 'vi' ? 'Tr?ng thÃ¡i' : 'Status'}</th>
-              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide">{lang === 'vi' ? 'Thao tÃ¡c' : 'Actions'}</th>
+              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide">{lang === 'vi' ? 'Tr?ng th�i' : 'Status'}</th>
+              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide">{lang === 'vi' ? 'Thao t�c' : 'Actions'}</th>
             </tr>
           </thead>
           <tbody>
@@ -933,7 +933,7 @@ const ProductsPanel: React.FC<{
                     </div>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-sm">{item.categoryName || (lang === 'vi' ? 'Chua phÃ¢n lo?i' : 'Uncategorized')}</td>
+                <td className="px-4 py-3 text-sm">{item.categoryName || (lang === 'vi' ? 'Chua ph�n lo?i' : 'Uncategorized')}</td>
                 <td className="px-4 py-3 text-sm font-semibold text-orange-500">{formatVND(item.price)}</td>
                 <td className="px-4 py-3 text-sm">
                   <span className={`px-2 py-1 rounded text-xs font-bold ${getInventoryQuantity(inventoryStock[item.id]) > 0 ? 'bg-green-500/20 text-green-400' : 'bg-zinc-700 text-zinc-200'}`}>
@@ -942,7 +942,7 @@ const ProductsPanel: React.FC<{
                 </td>
                 <td className="px-4 py-3 text-sm">
                   <span className={`px-2 py-1 rounded text-xs font-bold ${getInventoryQuantity(inventoryStock[item.id]) > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {getInventoryQuantity(inventoryStock[item.id]) > 0 ? (lang === 'vi' ? 'CÃ²n hÃ ng' : 'In stock') : lang === 'vi' ? 'H?t hÃ ng' : 'Out of stock'}
+                    {getInventoryQuantity(inventoryStock[item.id]) > 0 ? (lang === 'vi' ? 'C�n h�ng' : 'In stock') : lang === 'vi' ? 'H?t h�ng' : 'Out of stock'}
                   </span>
                 </td>
                 <td className="px-4 py-3 flex gap-2">
@@ -950,7 +950,7 @@ const ProductsPanel: React.FC<{
                     {lang === 'vi' ? 'S?a' : 'Edit'}
                   </button>
                   <button onClick={() => deleteProduct(item.id)} className="px-3 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs">
-                    {lang === 'vi' ? 'XÃ³a' : 'Delete'}
+                    {lang === 'vi' ? 'X�a' : 'Delete'}
                   </button>
                 </td>
               </tr>
@@ -961,7 +961,7 @@ const ProductsPanel: React.FC<{
 
       {filteredProducts.length === 0 && (
         <div className="text-center py-12 opacity-50">
-          <p>{lang === 'vi' ? 'KhÃ´ng tÃ¬m th?y s?n ph?m' : 'No products found'}</p>
+          <p>{lang === 'vi' ? 'Kh�ng t�m th?y s?n ph?m' : 'No products found'}</p>
         </div>
       )}
     </div>
@@ -1004,16 +1004,16 @@ const InventoryManagementPanel: React.FC<{
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl mb-4">{lang === 'vi' ? 'Qu?n lÃ½ kho' : 'Inventory Management'}</h2>
-      <p className="text-sm text-zinc-200">{lang === 'vi' ? 'Nh?p tr?c ti?p s? lu?ng hi?n cÃ³. Khi don du?c thanh toÃ¡n, h? th?ng s? t? tr? kho.' : 'Enter the current quantity directly. Paid orders will reduce stock automatically.'}</p>
+      <h2 className="text-xl mb-4">{lang === 'vi' ? 'Qu?n l� kho' : 'Inventory Management'}</h2>
+      <p className="text-sm text-zinc-200">{lang === 'vi' ? 'Nh?p tr?c ti?p s? lu?ng hi?n c�. Khi don du?c thanh to�n, h? th?ng s? t? tr? kho.' : 'Enter the current quantity directly. Paid orders will reduce stock automatically.'}</p>
       <table className="w-full table-fixed text-sm border-collapse">
         <thead>
           <tr className="border-b">
-            <th className="w-[28%] px-3 py-3 text-left">{lang === 'vi' ? 'MÃ³n' : 'Item'}</th>
+            <th className="w-[28%] px-3 py-3 text-left">{lang === 'vi' ? 'M�n' : 'Item'}</th>
             <th className="w-[18%] px-3 py-3 text-center">{lang === 'vi' ? 'T?n' : 'Stock'}</th>
-            <th className="w-[16%] px-3 py-3 text-center">{lang === 'vi' ? 'ÃÃ£ bÃ¡n' : 'Sold'}</th>
-            <th className="w-[16%] px-3 py-3 text-center">{lang === 'vi' ? 'Hi?n cÃ²n' : 'Remaining'}</th>
-            <th className="w-[22%] px-3 py-3 text-center">{lang === 'vi' ? 'Tr?ng thÃ¡i' : 'Status'}</th>
+            <th className="w-[16%] px-3 py-3 text-center">{lang === 'vi' ? '�� b�n' : 'Sold'}</th>
+            <th className="w-[16%] px-3 py-3 text-center">{lang === 'vi' ? 'Hi?n c�n' : 'Remaining'}</th>
+            <th className="w-[22%] px-3 py-3 text-center">{lang === 'vi' ? 'Tr?ng th�i' : 'Status'}</th>
           </tr>
         </thead>
         <tbody>
@@ -1044,7 +1044,7 @@ const InventoryManagementPanel: React.FC<{
                 <td className="px-3 py-3 text-center align-middle font-semibold">{remaining}</td>
                 <td className="px-3 py-3 text-center align-middle">
                   <span className={`rounded-full px-3 py-1 text-xs font-semibold ${remaining > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {remaining > 0 ? (lang === 'vi' ? 'CÃ²n hÃ ng' : 'In stock') : lang === 'vi' ? 'H?t hÃ ng' : 'Out of stock'}
+                    {remaining > 0 ? (lang === 'vi' ? 'C�n h�ng' : 'In stock') : lang === 'vi' ? 'H?t h�ng' : 'Out of stock'}
                   </span>
                 </td>
               </tr>
@@ -1083,7 +1083,7 @@ const DashboardPanel: React.FC<{
       const dayRevenue = orders
         .filter(o => {
           const t = new Date(o.createdAt);
-          return t >= d && t < nextDay && (o.status === 'ÃÃ£ thanh toÃ¡n' || o.status === 'Paid');
+          return t >= d && t < nextDay && (o.status === '�� thanh to�n' || o.status === 'Paid');
         })
         .reduce((sum, o) => sum + (o.total || 0), 0);
       
@@ -1101,10 +1101,10 @@ const DashboardPanel: React.FC<{
   });
 
   const todayRevenue = todayOrders
-    .filter(o => o.status === 'ÃÃ£ thanh toÃ¡n' || o.status === 'Paid')
+    .filter(o => o.status === '�� thanh to�n' || o.status === 'Paid')
     .reduce((sum, o) => sum + (o.total || 0), 0);
 
-  const pendingOrders = orders.filter(o => o.status === 'Ch? x? lÃ½' || o.status === 'Processing').length;
+  const pendingOrders = orders.filter(o => o.status === 'Ch? x? l�' || o.status === 'Processing').length;
   const totalCustomers = new Set(todayOrders.map(order => order.customer.trim()).filter(Boolean)).size;
   const totalInventory = menuItems.length;
   const dashboardOrderCount = todayOrders.length;
@@ -1136,9 +1136,9 @@ const DashboardPanel: React.FC<{
         <div className="bg-gradient-to-br from-purple-600 to-purple-700 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-sm opacity-80 mb-1">Doanh thu hÃ´m nay</p>
+              <p className="text-sm opacity-80 mb-1">Doanh thu h�m nay</p>
               <p className="text-3xl font-bold">{formatVND(todayRevenue)}</p>
-              <p className="text-xs opacity-60 mt-2">7 ngÃ y g?n nh?t: {formatVND(sevenDaysData.data.reduce((a, b) => a + b, 0))}</p>
+              <p className="text-xs opacity-60 mt-2">7 ng�y g?n nh?t: {formatVND(sevenDaysData.data.reduce((a, b) => a + b, 0))}</p>
             </div>
             <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">??</div>
           </div>
@@ -1148,9 +1148,9 @@ const DashboardPanel: React.FC<{
         <div className="bg-gradient-to-br from-pink-600 to-pink-700 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-sm opacity-80 mb-1">Ãon hÃ ng</p>
+              <p className="text-sm opacity-80 mb-1">�on h�ng</p>
               <p className="text-3xl font-bold">{dashboardOrderCount}</p>
-              <p className="text-xs opacity-60 mt-2">HÃ´m nay: {todayOrders.length} don</p>
+              <p className="text-xs opacity-60 mt-2">H�m nay: {todayOrders.length} don</p>
             </div>
             <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">??</div>
           </div>
@@ -1160,9 +1160,9 @@ const DashboardPanel: React.FC<{
         <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <p className="text-sm opacity-80 mb-1">KhÃ¡ch hÃ ng</p>
+              <p className="text-sm opacity-80 mb-1">Kh�ch h�ng</p>
               <p className="text-3xl font-bold">{totalCustomers}</p>
-              <p className="text-xs opacity-60 mt-2">KhÃ¡ch quÃ©t QR hÃ´m nay: {totalCustomers || 0}</p>
+              <p className="text-xs opacity-60 mt-2">Kh�ch qu�t QR h�m nay: {totalCustomers || 0}</p>
             </div>
             <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">??</div>
           </div>
@@ -1184,7 +1184,7 @@ const DashboardPanel: React.FC<{
       {/* Revenue Chart */}
       <div className="bg-gray-900 rounded-2xl p-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold">?? Doanh thu 7 ngÃ y g?n nh?t</h3>
+          <h3 className="text-lg font-bold">?? Doanh thu 7 ng�y g?n nh?t</h3>
           <p className="text-xs opacity-60">C?p nh?t: {new Date().toLocaleTimeString('vi-VN')}</p>
         </div>
         <div className="h-72 bg-gray-800 rounded-lg p-4">
@@ -1270,7 +1270,7 @@ const CategoriesPanel: React.FC<{
       const result = await response.json().catch(() => ({}));
       setNotice({
         type: 'error',
-        message: result.error || (lang === 'vi' ? 'KhÃ´ng th? luu danh m?c.' : 'Unable to save category.')
+        message: result.error || (lang === 'vi' ? 'Kh�ng th? luu danh m?c.' : 'Unable to save category.')
       });
       return;
     }
@@ -1278,8 +1278,8 @@ const CategoriesPanel: React.FC<{
     setNotice({
       type: 'success',
       message: editingId
-        ? (lang === 'vi' ? 'ÃÃ£ c?p nh?t danh m?c.' : 'Category updated.')
-        : (lang === 'vi' ? 'ÃÃ£ thÃªm danh m?c m?i.' : 'Category added.')
+        ? (lang === 'vi' ? '�� c?p nh?t danh m?c.' : 'Category updated.')
+        : (lang === 'vi' ? '�� th�m danh m?c m?i.' : 'Category added.')
     });
     resetForm();
     fetchCategories();
@@ -1316,7 +1316,7 @@ const CategoriesPanel: React.FC<{
       const result = await response.json().catch(() => ({}));
       setNotice({
         type: 'error',
-        message: result.error || (lang === 'vi' ? 'KhÃ´ng th? xÃ³a danh m?c.' : 'Unable to delete category.')
+        message: result.error || (lang === 'vi' ? 'Kh�ng th? x�a danh m?c.' : 'Unable to delete category.')
       });
       return;
     }
@@ -1327,7 +1327,7 @@ const CategoriesPanel: React.FC<{
 
     setNotice({
       type: 'success',
-      message: lang === 'vi' ? 'ÃÃ£ xÃ³a danh m?c.' : 'Category deleted.'
+      message: lang === 'vi' ? '�� x�a danh m?c.' : 'Category deleted.'
     });
     setConfirmDelete(null);
     fetchCategories();
@@ -1340,11 +1340,11 @@ const CategoriesPanel: React.FC<{
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl ${isDark ? 'border-zinc-700 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-900'}`}>
             <p className="text-lg font-semibold">
-              {lang === 'vi' ? 'XÃ³a danh m?c' : 'Delete category'}
+              {lang === 'vi' ? 'X�a danh m?c' : 'Delete category'}
             </p>
             <p className={`mt-2 text-sm ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
               {lang === 'vi'
-                ? `B?n cÃ³ ch?c mu?n xÃ³a "${categoryToDelete!.name}" khÃ´ng?`
+                ? `B?n c� ch?c mu?n x�a "${categoryToDelete!.name}" kh�ng?`
                 : `Are you sure you want to delete "${categoryToDelete!.name}"?`}
             </p>
             <div className="mt-5 flex justify-end gap-3">
@@ -1360,7 +1360,7 @@ const CategoriesPanel: React.FC<{
                 onClick={() => deleteCategory(categoryToDelete!.id)}
                 className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
               >
-                {lang === 'vi' ? 'XÃ³a ngay' : 'Delete'}
+                {lang === 'vi' ? 'X�a ngay' : 'Delete'}
               </button>
             </div>
           </div>
@@ -1393,11 +1393,11 @@ const CategoriesPanel: React.FC<{
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className={`w-full max-w-md rounded-3xl border p-6 shadow-2xl ${isDark ? 'border-zinc-700 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-900'}`}>
             <p className="text-lg font-semibold">
-              {lang === 'vi' ? 'XÃ³a danh m?c' : 'Delete category'}
+              {lang === 'vi' ? 'X�a danh m?c' : 'Delete category'}
             </p>
             <p className={`mt-2 text-sm ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
               {lang === 'vi'
-                ? `B?n cÃ³ ch?c mu?n xÃ³a "${categoryToDelete!.name}" khÃ´ng?`
+                ? `B?n c� ch?c mu?n x�a "${categoryToDelete!.name}" kh�ng?`
                 : `Are you sure you want to delete "${categoryToDelete!.name}"?`}
             </p>
             <div className="mt-5 flex justify-end gap-3">
@@ -1413,7 +1413,7 @@ const CategoriesPanel: React.FC<{
                 onClick={() => deleteCategory(categoryToDelete!.id)}
                 className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
               >
-                {lang === 'vi' ? 'XÃ³a ngay' : 'Delete'}
+                {lang === 'vi' ? 'X�a ngay' : 'Delete'}
               </button>
             </div>
           </div>
@@ -1423,9 +1423,9 @@ const CategoriesPanel: React.FC<{
       <div className={`rounded-3xl border p-5 shadow-sm ${isDark ? 'border-zinc-800 bg-zinc-900/80' : 'border-zinc-200 bg-white'}`}>
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold">{lang === 'vi' ? 'Qu?n lÃ½ danh m?c' : 'Manage categories'}</h2>
+            <h2 className="text-xl font-bold">{lang === 'vi' ? 'Qu?n l� danh m?c' : 'Manage categories'}</h2>
             <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
-              {lang === 'vi' ? 'Ch? c?n tÃªn danh m?c vÃ  m?t icon. Link ?nh ho?c ?nh t? mÃ¡y lÃ  tÃ¹y ch?n.' : 'Only category name and one icon are required. Image URL or upload is optional.'}
+              {lang === 'vi' ? 'Ch? c?n t�n danh m?c v� m?t icon. Link ?nh ho?c ?nh t? m�y l� t�y ch?n.' : 'Only category name and one icon are required. Image URL or upload is optional.'}
             </p>
           </div>
           <div className={`rounded-2xl border px-4 py-3 text-center ${isDark ? 'border-zinc-700 bg-zinc-950' : 'border-zinc-200 bg-zinc-50'}`}>
@@ -1446,7 +1446,7 @@ const CategoriesPanel: React.FC<{
             <div className="space-y-3">
               <label className="block">
                 <span className={`mb-2 block text-sm font-medium ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                  {lang === 'vi' ? 'Emoji / kÃ½ hi?u' : 'Emoji / symbol'}
+                  {lang === 'vi' ? 'Emoji / k� hi?u' : 'Emoji / symbol'}
                 </span>
                 <input
                   type="text"
@@ -1479,13 +1479,13 @@ const CategoriesPanel: React.FC<{
             <div className="space-y-3">
               <label className="block">
                 <span className={`mb-2 block text-sm font-medium ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                  {lang === 'vi' ? 'TÃªn danh m?c' : 'Category name'}
+                  {lang === 'vi' ? 'T�n danh m?c' : 'Category name'}
                 </span>
                 <input
                   type="text"
                   value={newCategory}
                   onChange={e => setNewCategory(e.target.value)}
-                  placeholder={lang === 'vi' ? 'VÃ­ d?: Ã? nu?ng, MÃ³n ph?...' : 'Example: Grill, Side dishes...'}
+                  placeholder={lang === 'vi' ? 'V� d?: �? nu?ng, M�n ph?...' : 'Example: Grill, Side dishes...'}
                   className={`w-full rounded-2xl border px-4 py-3 ${isDark ? 'bg-zinc-950 border-zinc-700 text-white' : 'bg-white border-zinc-300 text-zinc-900'}`}
                 />
               </label>
@@ -1501,13 +1501,13 @@ const CategoriesPanel: React.FC<{
                     setIconUrl(e.target.value);
                     if (e.target.value.trim()) setNewIcon('');
                   }}
-                  placeholder={lang === 'vi' ? 'TÃ¹y ch?n: https://... ho?c dÃ¡n ?nh online' : 'Optional: https://... or paste an online image'}
+                  placeholder={lang === 'vi' ? 'T�y ch?n: https://... ho?c d�n ?nh online' : 'Optional: https://... or paste an online image'}
                   className={`w-full rounded-2xl border px-4 py-3 ${isDark ? 'bg-zinc-950 border-zinc-700 text-white' : 'bg-white border-zinc-300 text-zinc-900'}`}
                 />
               </label>
 
               <label className={`flex cursor-pointer items-center justify-between rounded-2xl border px-4 py-3 ${isDark ? 'border-zinc-700 bg-zinc-950' : 'border-zinc-300 bg-zinc-50'}`}>
-                <span className="text-sm font-medium">{lang === 'vi' ? 'T?i ?nh t? mÃ¡y' : 'Upload from device'}</span>
+                <span className="text-sm font-medium">{lang === 'vi' ? 'T?i ?nh t? m�y' : 'Upload from device'}</span>
                 <input type="file" accept="image/*" onChange={handleCategoryIconFile} className="hidden" />
                 <span className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white">
                   {lang === 'vi' ? 'Ch?n ?nh' : 'Choose image'}
@@ -1518,7 +1518,7 @@ const CategoriesPanel: React.FC<{
 
           <div className="flex flex-wrap gap-2">
             <button type="submit" className="rounded-2xl bg-green-600 px-5 py-3 font-semibold text-white transition hover:bg-green-700">
-              {editingId ? (lang === 'vi' ? 'Luu thay d?i' : 'Save changes') : lang === 'vi' ? 'ThÃªm danh m?c' : 'Add category'}
+              {editingId ? (lang === 'vi' ? 'Luu thay d?i' : 'Save changes') : lang === 'vi' ? 'Th�m danh m?c' : 'Add category'}
             </button>
             {editingId && (
               <button
@@ -1562,7 +1562,7 @@ const CategoriesPanel: React.FC<{
                 onClick={() => setConfirmDelete(cat)}
                 className="rounded-xl bg-red-500/10 px-3 py-2 font-medium text-red-400 transition hover:bg-red-500/20"
               >
-                {lang === 'vi' ? 'XÃ³a' : 'Delete'}
+                {lang === 'vi' ? 'X�a' : 'Delete'}
               </button>
             </div>
           </div>
@@ -1608,12 +1608,12 @@ const CustomersPanel: React.FC<{
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold">{lang === 'vi' ? 'Qu?n lÃ½ khÃ¡ch hÃ ng' : 'Manage customers'}</h2>
+      <h2 className="text-xl font-bold">{lang === 'vi' ? 'Qu?n l� kh�ch h�ng' : 'Manage customers'}</h2>
       <div className={`rounded-2xl border p-3 md:p-4 ${isDark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-zinc-50'}`}>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className={`inline-flex w-fit rounded-2xl p-1 ${isDark ? 'bg-zinc-950/80' : 'bg-white shadow-sm'}`}>
         <button type="button" onClick={() => onViewModeChange('today')} className={`rounded-xl px-4 py-2 transition ${viewMode === 'today' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : isDark ? 'text-zinc-300 hover:bg-zinc-800' : 'text-zinc-600 hover:bg-zinc-100'}`}>
-          {lang === 'vi' ? 'KhÃ¡ch hÃ´m nay' : 'Today customers'}
+          {lang === 'vi' ? 'Kh�ch h�m nay' : 'Today customers'}
         </button>
         <button type="button" onClick={() => onViewModeChange('history')} className={`rounded-xl px-4 py-2 transition ${viewMode === 'history' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : isDark ? 'text-zinc-300 hover:bg-zinc-800' : 'text-zinc-600 hover:bg-zinc-100'}`}>
           {lang === 'vi' ? 'Xem l?ch s?' : 'History'}
@@ -1622,7 +1622,7 @@ const CustomersPanel: React.FC<{
           {viewMode === 'history' && (
             <label className="flex items-center gap-3">
               <span className={`text-sm font-medium ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                {lang === 'vi' ? 'Ch?n ngÃ y' : 'Choose date'}
+                {lang === 'vi' ? 'Ch?n ng�y' : 'Choose date'}
               </span>
               <input
                 type="date"
@@ -1638,9 +1638,9 @@ const CustomersPanel: React.FC<{
         <table className="w-full">
           <thead className={isDark ? 'bg-zinc-800' : 'bg-zinc-100'}>
             <tr>
-              <th className="px-4 py-2 text-left text-sm font-semibold">{lang === 'vi' ? 'TÃªn' : 'Name'}</th>
-              <th className="px-4 py-2 text-left text-sm font-semibold">{lang === 'vi' ? 'Ãon hÃ ng' : 'Orders'}</th>
-              <th className="px-4 py-2 text-left text-sm font-semibold">{lang === 'vi' ? 'T?ng chi tiÃªu' : 'Total spent'}</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold">{lang === 'vi' ? 'T�n' : 'Name'}</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold">{lang === 'vi' ? '�on h�ng' : 'Orders'}</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold">{lang === 'vi' ? 'T?ng chi ti�u' : 'Total spent'}</th>
             </tr>
           </thead>
           <tbody>
@@ -1654,7 +1654,7 @@ const CustomersPanel: React.FC<{
             {customers.length === 0 && (
               <tr>
                 <td colSpan={3} className="px-4 py-6 text-center text-sm opacity-70">
-                  {lang === 'vi' ? 'KhÃ´ng cÃ³ khÃ¡ch hÃ ng trong ngÃ y du?c ch?n ho?c chua cÃ³ khÃ¡ch quÃ©t QR.' : 'No customer data for the selected day.'}
+                  {lang === 'vi' ? 'Kh�ng c� kh�ch h�ng trong ng�y du?c ch?n ho?c chua c� kh�ch qu�t QR.' : 'No customer data for the selected day.'}
                 </td>
               </tr>
             )}
@@ -1677,7 +1677,7 @@ const CouponsPanel: React.FC<{lang: 'vi' | 'en'; isDark: boolean}> = ({lang, isD
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold">{lang === 'vi' ? 'Qu?n lÃ½ mÃ£ gi?m giÃ¡' : 'Manage coupons'}</h2>
+      <h2 className="text-xl font-bold">{lang === 'vi' ? 'Qu?n l� m� gi?m gi�' : 'Manage coupons'}</h2>
       <form className="grid grid-cols-1 md:grid-cols-4 gap-2" onSubmit={(e) => {
         e.preventDefault();
         if (newCode.trim() && newDiscount) {
@@ -1697,21 +1697,21 @@ const CouponsPanel: React.FC<{lang: 'vi' | 'en'; isDark: boolean}> = ({lang, isD
           type="number"
           value={newDiscount}
           onChange={e => setNewDiscount(e.target.value)}
-          placeholder={lang === 'vi' ? 'GiÃ¡ tr?' : 'Value'}
+          placeholder={lang === 'vi' ? 'Gi� tr?' : 'Value'}
           className={`px-4 py-2 rounded border ${isDark ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-white border-zinc-300'}`}
         />
         <select value={newType} onChange={e => setNewType(e.target.value as 'percent' | 'fixed')} className={`px-4 py-2 rounded border ${isDark ? 'bg-zinc-800 border-zinc-600 text-white' : 'bg-white border-zinc-300'}`}>
           <option value="percent">%</option>
-          <option value="fixed">{lang === 'vi' ? 'VNÃ' : 'VND'}</option>
+          <option value="fixed">{lang === 'vi' ? 'VN�' : 'VND'}</option>
         </select>
-        <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium transition">{lang === 'vi' ? 'ThÃªm' : 'Add'}</button>
+        <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium transition">{lang === 'vi' ? 'Th�m' : 'Add'}</button>
       </form>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {coupons.map(coupon => (
           <div key={coupon.id} className={`p-4 rounded-lg border ${isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-200'}`}>
             <p className="font-bold text-lg text-cyan-400">{coupon.code}</p>
             <p className="text-sm mt-1">{coupon.discount}{coupon.type === 'percent' ? '%' : ' d'}</p>
-            <button className="text-xs text-red-500 hover:text-red-700 mt-2">{lang === 'vi' ? 'XÃ³a' : 'Delete'}</button>
+            <button className="text-xs text-red-500 hover:text-red-700 mt-2">{lang === 'vi' ? 'X�a' : 'Delete'}</button>
           </div>
         ))}
       </div>
@@ -1793,13 +1793,13 @@ export default function AdminPage() {
       dashboard: 'Dashboard',
       products: 'S?n ph?m',
       categories: 'Danh m?c',
-      orders: 'Ãon hÃ ng',
-      customers: 'KhÃ¡ch hÃ ng',
+      orders: '�on h�ng',
+      customers: 'Kh�ch h�ng',
       inventory: 'T?n kho',
-      coupons: 'MÃ£ gi?m giÃ¡',
-      reports: 'BÃ¡o cÃ¡o',
-      accounts: 'TÃ i kho?n',
-      management: 'Qu?n lÃ½ nhÃ  hÃ ng'
+      coupons: 'M� gi?m gi�',
+      reports: 'B�o c�o',
+      accounts: 'T�i kho?n',
+      management: 'Qu?n l� nh� h�ng'
     },
     en: {
       dashboard: 'Dashboard',
@@ -2044,7 +2044,7 @@ export default function AdminPage() {
       setIsAuthenticated(true);
       await checkSession();
     } catch {
-      setAuthError('KhÃ´ng th? dang nh?p admin.');
+      setAuthError('Kh�ng th? dang nh?p admin.');
     }
   };
 
@@ -2071,7 +2071,7 @@ export default function AdminPage() {
       setIsAuthenticated(true);
       await checkSession();
     } catch {
-      setAuthError('KhÃ´ng th? xÃ¡c th?c mÃ£ OTP.');
+      setAuthError('Kh�ng th? x�c th?c m� OTP.');
     }
   };
 
@@ -2133,12 +2133,12 @@ export default function AdminPage() {
     const counts = filteredOrders.reduce(
       (acc, order) => {
         const status = order.status;
-        if (status === 'Ch? x? lÃ½' || status === 'Processing') acc.processing++;
-        if (status === 'Ãang n?u' || status === 'Cooking') acc.cooking++;
-        if (status === 'ÃÃ£ n?u xong' || status === 'Cooked') acc.cooked++;
+        if (status === 'Ch? x? l�' || status === 'Processing') acc.processing++;
+        if (status === '�ang n?u' || status === 'Cooking') acc.cooking++;
+        if (status === '�� n?u xong' || status === 'Cooked') acc.cooked++;
         if (status === 'T? ch?i' || status === 'Rejected') acc.rejected++;
-        if (status === 'ÃÃ£ ph?c v?' || status === 'Served') acc.served++;
-        if (status === 'ÃÃ£ thanh toÃ¡n' || status === 'Paid') acc.paid++;
+        if (status === '�� ph?c v?' || status === 'Served') acc.served++;
+        if (status === '�� thanh to�n' || status === 'Paid') acc.paid++;
         return acc;
       },
       { processing: 0, cooking: 0, cooked: 0, rejected: 0, served: 0, paid: 0 },
@@ -2151,7 +2151,7 @@ export default function AdminPage() {
         current.map(order => {
           if (order.id !== id) return order;
           const next = { ...order, status: newStatus };
-          if ((newStatus === 'ÃÃ£ thanh toÃ¡n' || newStatus === 'Paid') && !next.deducted) {
+          if ((newStatus === '�� thanh to�n' || newStatus === 'Paid') && !next.deducted) {
             subtractInventoryForOrder(next);
             next.deducted = true;
           }
@@ -2160,9 +2160,9 @@ export default function AdminPage() {
       );
 
       if (targetOrder?.table && targetOrder?.floor) {
-        if (newStatus === 'ÃÃ£ thanh toÃ¡n' || newStatus === 'Paid') {
+        if (newStatus === '�� thanh to�n' || newStatus === 'Paid') {
           updateTableStatusByOrder(targetOrder.table, targetOrder.floor, 'empty');
-        } else if (newStatus === 'Ch? x? lÃ½' || newStatus === 'Processing' || newStatus === 'Ãang n?u' || newStatus === 'Cooking' || newStatus === 'ÃÃ£ n?u xong' || newStatus === 'Cooked' || newStatus === 'ÃÃ£ ph?c v?' || newStatus === 'Served') {
+        } else if (newStatus === 'Ch? x? l�' || newStatus === 'Processing' || newStatus === '�ang n?u' || newStatus === 'Cooking' || newStatus === '�� n?u xong' || newStatus === 'Cooked' || newStatus === '�� ph?c v?' || newStatus === 'Served') {
           updateTableStatusByOrder(targetOrder.table, targetOrder.floor, 'ordering');
         }
       }
@@ -2212,41 +2212,41 @@ export default function AdminPage() {
     };
 
     const statuses = [
-      lang === 'vi' ? 'Ch? x? lÃ½' : 'Processing',
-      lang === 'vi' ? 'Ãang n?u' : 'Cooking',
-      lang === 'vi' ? 'ÃÃ£ n?u xong' : 'Cooked',
+      lang === 'vi' ? 'Ch? x? l�' : 'Processing',
+      lang === 'vi' ? '�ang n?u' : 'Cooking',
+      lang === 'vi' ? '�� n?u xong' : 'Cooked',
       lang === 'vi' ? 'T? ch?i' : 'Rejected',
-      lang === 'vi' ? 'ÃÃ£ ph?c v?' : 'Served',
-      lang === 'vi' ? 'ÃÃ£ thanh toÃ¡n' : 'Paid',
+      lang === 'vi' ? '�� ph?c v?' : 'Served',
+      lang === 'vi' ? '�� thanh to�n' : 'Paid',
     ];
 
     const payUrl = (id: string) => `${origin}/pay/${id}`;
 
     const summaryLabelMap: Record<string, string> = {
-      processing: lang === 'vi' ? 'Ch? x? lÃ½' : 'Processing',
-      cooking: lang === 'vi' ? 'Ãang n?u' : 'Cooking',
-      cooked: lang === 'vi' ? 'ÃÃ£ n?u xong' : 'Cooked',
+      processing: lang === 'vi' ? 'Ch? x? l�' : 'Processing',
+      cooking: lang === 'vi' ? '�ang n?u' : 'Cooking',
+      cooked: lang === 'vi' ? '�� n?u xong' : 'Cooked',
       rejected: lang === 'vi' ? 'T? ch?i' : 'Rejected',
-      served: lang === 'vi' ? 'ÃÃ£ ph?c v?' : 'Served',
-      paid: lang === 'vi' ? 'ÃÃ£ thanh toÃ¡n' : 'Paid',
+      served: lang === 'vi' ? '�� ph?c v?' : 'Served',
+      paid: lang === 'vi' ? '�� thanh to�n' : 'Paid',
     };
 
     const getStatusTone = (status: string) => {
-      if (status === 'Ãang n?u' || status === 'Cooking') {
+      if (status === '�ang n?u' || status === 'Cooking') {
         return {
           badge: 'border border-amber-300/40 bg-amber-400/20 text-amber-100',
           card: isDark ? 'border-amber-300/40 bg-amber-400/10 shadow-[0_18px_40px_-26px_rgba(251,191,36,0.75)]' : 'border-amber-300 bg-amber-50',
         };
       }
 
-      if (status === 'ÃÃ£ n?u xong' || status === 'Cooked') {
+      if (status === '�� n?u xong' || status === 'Cooked') {
         return {
           badge: 'border border-sky-300/40 bg-sky-400/20 text-sky-100',
           card: isDark ? 'border-sky-300/40 bg-sky-500/10 shadow-[0_18px_40px_-26px_rgba(56,189,248,0.8)]' : 'border-sky-300 bg-sky-50',
         };
       }
 
-      if (status === 'Ch? x? lÃ½' || status === 'Processing') {
+      if (status === 'Ch? x? l�' || status === 'Processing') {
         return {
           badge: 'border border-cyan-300/30 bg-cyan-400/15 text-cyan-100',
           card: isDark ? 'border-cyan-400/30 bg-cyan-500/8' : 'border-cyan-200 bg-cyan-50',
@@ -2260,7 +2260,7 @@ export default function AdminPage() {
         };
       }
 
-      if (status === 'ÃÃ£ ph?c v?' || status === 'Served') {
+      if (status === '�� ph?c v?' || status === 'Served') {
         return {
           badge: 'border border-emerald-300/30 bg-emerald-400/15 text-emerald-100',
           card: isDark ? 'border-emerald-400/30 bg-emerald-500/8' : 'border-emerald-200 bg-emerald-50',
@@ -2283,7 +2283,7 @@ export default function AdminPage() {
                 onClick={() => onViewModeChange('today')}
                 className={`rounded-xl px-4 py-2 transition ${viewMode === 'today' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : isDark ? 'text-zinc-300 hover:bg-zinc-800' : 'text-zinc-600 hover:bg-zinc-100'}`}
               >
-                {lang === 'vi' ? 'Ãon hÃ´m nay' : 'Today orders'}
+                {lang === 'vi' ? '�on h�m nay' : 'Today orders'}
               </button>
               <button
                 type="button"
@@ -2297,7 +2297,7 @@ export default function AdminPage() {
             {viewMode === 'history' && (
               <label className="flex items-center gap-3">
                 <span className={`text-sm font-medium ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                  {lang === 'vi' ? 'Ch?n ngÃ y' : 'Choose date'}
+                  {lang === 'vi' ? 'Ch?n ng�y' : 'Choose date'}
                 </span>
                 <input
                   type="date"
@@ -2345,10 +2345,10 @@ export default function AdminPage() {
 
                       <div>
                         <p className="text-lg font-black leading-tight md:text-[1.7rem]">
-                          {lang === 'vi' ? 'Ãon' : 'Order'} #{order.id}
+                          {lang === 'vi' ? '�on' : 'Order'} #{order.id}
                         </p>
                         <p className={`mt-0.5 text-sm ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                          {lang === 'vi' ? `KhÃ¡ch ${order.customer || 'KhÃ¡ch l?'}` : `Customer ${order.customer || 'Walk-in'}`}
+                          {lang === 'vi' ? `Kh�ch ${order.customer || 'Kh�ch l?'}` : `Customer ${order.customer || 'Walk-in'}`}
                         </p>
                       </div>
                     </div>
@@ -2366,10 +2366,10 @@ export default function AdminPage() {
                   <div className="mt-2.5 grid gap-2 grid-cols-3">
                     <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
                       <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
-                        {lang === 'vi' ? 'BÃ n / t?ng' : 'Table / floor'}
+                        {lang === 'vi' ? 'B�n / t?ng' : 'Table / floor'}
                       </p>
                       <p className="mt-1 text-sm font-bold md:text-base">
-                        {order.table || '--'}{order.floor ? ` Â ${lang === 'vi' ? `T?ng ${order.floor}` : `Floor ${order.floor}`}` : ''}
+                        {order.table || '--'}{order.floor ? ` � ${lang === 'vi' ? `T?ng ${order.floor}` : `Floor ${order.floor}`}` : ''}
                       </p>
                     </div>
 
@@ -2387,7 +2387,7 @@ export default function AdminPage() {
 
                     <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
                       <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
-                        {lang === 'vi' ? 'T?ng mÃ³n' : 'Total items'}
+                        {lang === 'vi' ? 'T?ng m�n' : 'Total items'}
                       </p>
                       <p className="mt-1 text-sm font-bold md:text-base">{totalItems}</p>
                     </div>
@@ -2411,7 +2411,7 @@ export default function AdminPage() {
                       rel="noreferrer"
                       className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-500 px-3 text-center text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
                     >
-                      {lang === 'vi' ? 'Thanh toÃ¡n' : 'Pay'}
+                      {lang === 'vi' ? 'Thanh to�n' : 'Pay'}
                     </a>
 
                     <button
@@ -2428,7 +2428,7 @@ export default function AdminPage() {
           </div>
         ) : (
           <div className={`rounded-[28px] border border-dashed p-12 text-center ${isDark ? 'border-zinc-800 bg-zinc-900/40 text-zinc-400' : 'border-zinc-300 bg-zinc-50 text-zinc-500'}`}>
-            {lang === 'vi' ? 'KhÃ´ng cÃ³ don hÃ ng trong ngÃ y du?c ch?n.' : 'No orders for the selected day.'}
+            {lang === 'vi' ? 'Kh�ng c� don h�ng trong ng�y du?c ch?n.' : 'No orders for the selected day.'}
           </div>
         )}
 
@@ -2441,10 +2441,10 @@ export default function AdminPage() {
                     {lang === 'vi' ? 'Chi ti?t don' : 'Order details'}
                   </p>
                   <h3 className="mt-2 text-2xl font-black">
-                    {lang === 'vi' ? 'Ãon' : 'Order'} #{detailOrder.id}
+                    {lang === 'vi' ? '�on' : 'Order'} #{detailOrder.id}
                   </h3>
                   <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    {lang === 'vi' ? `KhÃ¡ch ${detailOrder.customer || 'KhÃ¡ch l?'}` : `Customer ${detailOrder.customer || 'Walk-in'}`}
+                    {lang === 'vi' ? `Kh�ch ${detailOrder.customer || 'Kh�ch l?'}` : `Customer ${detailOrder.customer || 'Walk-in'}`}
                   </p>
                 </div>
                 <button
@@ -2452,19 +2452,19 @@ export default function AdminPage() {
                   onClick={() => setDetailOrder(null)}
                   className={`inline-flex h-11 min-w-11 items-center justify-center rounded-2xl border px-3 text-sm font-semibold ${isDark ? 'border-zinc-700 bg-zinc-900 text-zinc-200' : 'border-zinc-300 bg-zinc-100 text-zinc-700'}`}
                 >
-                  {lang === 'vi' ? 'ÃÃ³ng' : 'Close'}
+                  {lang === 'vi' ? '��ng' : 'Close'}
                 </button>
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-4">
                 <div className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-zinc-50'}`}>
-                  <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'Tr?ng thÃ¡i' : 'Status'}</p>
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'Tr?ng th�i' : 'Status'}</p>
                   <p className="mt-2 text-sm font-bold">{detailOrder.status}</p>
                 </div>
                 <div className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-zinc-50'}`}>
-                  <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'BÃ n / t?ng' : 'Table / floor'}</p>
+                  <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'B�n / t?ng' : 'Table / floor'}</p>
                   <p className="mt-2 text-sm font-bold">
-                    {detailOrder.table || '--'}{detailOrder.floor ? ` Â ${lang === 'vi' ? `T?ng ${detailOrder.floor}` : `Floor ${detailOrder.floor}`}` : ''}
+                    {detailOrder.table || '--'}{detailOrder.floor ? ` � ${lang === 'vi' ? `T?ng ${detailOrder.floor}` : `Floor ${detailOrder.floor}`}` : ''}
                   </p>
                 </div>
                 <div className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-zinc-50'}`}>
@@ -2479,9 +2479,9 @@ export default function AdminPage() {
 
               <div className={`mt-4 rounded-[24px] border p-4 ${isDark ? 'border-zinc-800 bg-zinc-900/60' : 'border-zinc-200 bg-zinc-50'}`}>
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-base font-semibold">{lang === 'vi' ? 'Danh sÃ¡ch mÃ³n' : 'Items'}</p>
+                  <p className="text-base font-semibold">{lang === 'vi' ? 'Danh s�ch m�n' : 'Items'}</p>
                   <span className={`text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    {detailOrder.items.reduce((sum, item) => sum + item.qty, 0)} {lang === 'vi' ? 'mÃ³n' : 'items'}
+                    {detailOrder.items.reduce((sum, item) => sum + item.qty, 0)} {lang === 'vi' ? 'm�n' : 'items'}
                   </span>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
@@ -2507,7 +2507,7 @@ export default function AdminPage() {
                   rel="noreferrer"
                   className="inline-flex h-11 items-center justify-center rounded-2xl bg-emerald-500 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
                 >
-                  {lang === 'vi' ? 'Thanh toÃ¡n' : 'Pay'}
+                  {lang === 'vi' ? 'Thanh to�n' : 'Pay'}
                 </a>
                 <button
                   type="button"
@@ -2541,12 +2541,12 @@ export default function AdminPage() {
 
     const counts = filteredOrders.reduce((acc, o) => {
       const s = o.status;
-      if (s === 'Ch? x? lÃ½' || s === 'Processing') acc.processing++;
-      if (s === 'Ãang n?u' || s === 'Cooking') acc.cooking++;
-      if (s === 'ÃÃ£ n?u xong' || s === 'Cooked') acc.cooked++;
+      if (s === 'Ch? x? l�' || s === 'Processing') acc.processing++;
+      if (s === '�ang n?u' || s === 'Cooking') acc.cooking++;
+      if (s === '�� n?u xong' || s === 'Cooked') acc.cooked++;
       if (s === 'T? ch?i' || s === 'Rejected') acc.rejected++;
-      if (s === 'ÃÃ£ ph?c v?' || s === 'Served') acc.served++;
-      if (s === 'ÃÃ£ thanh toÃ¡n' || s === 'Paid') acc.paid++;
+      if (s === '�� ph?c v?' || s === 'Served') acc.served++;
+      if (s === '�� thanh to�n' || s === 'Paid') acc.paid++;
       return acc;
     }, {processing:0, cooking:0, cooked:0, rejected:0, served:0, paid:0});
 
@@ -2554,7 +2554,7 @@ export default function AdminPage() {
       setOrders(o => o.map(x => {
         if (x.id !== id) return x;
         const next = { ...x, status: newStatus };
-        if ((newStatus === 'ÃÃ£ thanh toÃ¡n' || newStatus === 'Paid') && !next.deducted) {
+        if ((newStatus === '�� thanh to�n' || newStatus === 'Paid') && !next.deducted) {
           subtractInventoryForOrder(next);
           next.deducted = true;
         }
@@ -2611,12 +2611,12 @@ export default function AdminPage() {
     }, []);
 
     const statuses = [
-      lang === 'vi' ? 'Ch? x? lÃ½' : 'Processing',
-      lang === 'vi' ? 'Ãang n?u' : 'Cooking',
-      lang === 'vi' ? 'ÃÃ£ n?u xong' : 'Cooked',
+      lang === 'vi' ? 'Ch? x? l�' : 'Processing',
+      lang === 'vi' ? '�ang n?u' : 'Cooking',
+      lang === 'vi' ? '�� n?u xong' : 'Cooked',
       lang === 'vi' ? 'T? ch?i' : 'Rejected',
-      lang === 'vi' ? 'ÃÃ£ ph?c v?' : 'Served',
-      lang === 'vi' ? 'ÃÃ£ thanh toÃ¡n' : 'Paid'
+      lang === 'vi' ? '�� ph?c v?' : 'Served',
+      lang === 'vi' ? '�� thanh to�n' : 'Paid'
     ];
 
     const payUrl = (id: string) => `${origin}/pay/${id}`;
@@ -2627,7 +2627,7 @@ export default function AdminPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className={`inline-flex w-fit rounded-2xl p-1 ${isDark ? 'bg-zinc-950/80' : 'bg-white shadow-sm'}`}>
           <button type="button" onClick={() => onViewModeChange('today')} className={`rounded-xl px-4 py-2 transition ${viewMode === 'today' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : isDark ? 'text-zinc-300 hover:bg-zinc-800' : 'text-zinc-600 hover:bg-zinc-100'}`}>
-            {lang === 'vi' ? 'Ãon hÃ´m nay' : 'Today orders'}
+            {lang === 'vi' ? '�on h�m nay' : 'Today orders'}
           </button>
           <button type="button" onClick={() => onViewModeChange('history')} className={`rounded-xl px-4 py-2 transition ${viewMode === 'history' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : isDark ? 'text-zinc-300 hover:bg-zinc-800' : 'text-zinc-600 hover:bg-zinc-100'}`}>
             {lang === 'vi' ? 'Xem l?ch s?' : 'History'}
@@ -2636,7 +2636,7 @@ export default function AdminPage() {
             {viewMode === 'history' && (
               <label className="flex items-center gap-3">
                 <span className={`text-sm font-medium ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                  {lang === 'vi' ? 'Ch?n ngÃ y' : 'Choose date'}
+                  {lang === 'vi' ? 'Ch?n ng�y' : 'Choose date'}
                 </span>
                 <input
                   type="date"
@@ -2651,12 +2651,12 @@ export default function AdminPage() {
         <div className="flex flex-wrap gap-4">
           {Object.entries(counts).map(([k,v]) => {
             const labelMap: Record<string,string> = {
-              processing: lang==='vi'?'Ch? x? lÃ½':'Processing',
-              cooking: lang==='vi'?'Ãang n?u':'Cooking',
-              cooked: lang==='vi'?'ÃÃ£ n?u xong':'Cooked',
+              processing: lang==='vi'?'Ch? x? l�':'Processing',
+              cooking: lang==='vi'?'�ang n?u':'Cooking',
+              cooked: lang==='vi'?'�� n?u xong':'Cooked',
               rejected: lang==='vi'?'T? ch?i':'Rejected',
-              served: lang==='vi'?'ÃÃ£ ph?c v?':'Served',
-              paid: lang==='vi'?'ÃÃ£ thanh toÃ¡n':'Paid'
+              served: lang==='vi'?'�� ph?c v?':'Served',
+              paid: lang==='vi'?'�� thanh to�n':'Paid'
             };
             return <span key={k} className="px-3 py-1 bg-linear-to-r from-blue-500 to-cyan-500 text-white rounded shadow-sm">{labelMap[k]}: {v}</span>;
           })}
@@ -2664,14 +2664,14 @@ export default function AdminPage() {
           <table className={`w-full text-sm border-collapse ${isDark ? 'text-white' : 'text-zinc-900'}`}>
           <thead>
             <tr className="border-b">
-              <th className="p-2">{lang==='vi'?'BÃ n':'Table'}</th>
-              <th className="p-2">{lang==='vi'?'KhÃ¡ch hÃ ng':'Customer'}</th>
-              <th className="p-2">{lang==='vi'?'MÃ³n an':'Items'}</th>
+              <th className="p-2">{lang==='vi'?'B�n':'Table'}</th>
+              <th className="p-2">{lang==='vi'?'Kh�ch h�ng':'Customer'}</th>
+              <th className="p-2">{lang==='vi'?'M�n an':'Items'}</th>
               <th className="p-2">{lang==='vi'?'T?ng':'Total'}</th>
-              <th className="p-2">{lang==='vi'?'Tr?ng thÃ¡i':'Status'}</th>
-              <th className="p-2">{lang==='vi'?'NhÃ¢n viÃªn':'Employee'}</th>
+              <th className="p-2">{lang==='vi'?'Tr?ng th�i':'Status'}</th>
+              <th className="p-2">{lang==='vi'?'Nh�n vi�n':'Employee'}</th>
               <th className="p-2">{lang==='vi'?'Th?i gian':'Time'}</th>
-              <th className="p-2">{lang==='vi'?'Thanh toÃ¡n':'Pay'}</th>
+              <th className="p-2">{lang==='vi'?'Thanh to�n':'Pay'}</th>
               <th className="p-2">{lang==='vi'?'In':'Print'}</th>
             </tr>
           </thead>
@@ -2704,7 +2704,7 @@ export default function AdminPage() {
                   <td className="p-2">{new Date(o.createdAt).toLocaleString()}</td>
                   <td className="p-2">
                     <a href={payUrl(o.id)} target="_blank" rel="noreferrer" className="text-xs underline">
-                      {lang === 'vi' ? 'Thanh toÃ¡n' : 'Pay'}
+                      {lang === 'vi' ? 'Thanh to�n' : 'Pay'}
                     </a>
                   </td>
                   <td className="p-2">
@@ -2719,7 +2719,7 @@ export default function AdminPage() {
             {filteredOrders.length === 0 && (
               <tr>
                 <td colSpan={9} className="p-6 text-center opacity-70">
-                  {lang === 'vi' ? 'KhÃ´ng cÃ³ don hÃ ng trong ngÃ y du?c ch?n.' : 'No orders for the selected day.'}
+                  {lang === 'vi' ? 'Kh�ng c� don h�ng trong ng�y du?c ch?n.' : 'No orders for the selected day.'}
                 </td>
               </tr>
             )}
@@ -2739,7 +2739,7 @@ export default function AdminPage() {
     const todayPaidOrders = orders.filter(o => {
       const createdAt = new Date(o.createdAt);
       const isToday = createdAt >= startOfDay && createdAt <= endOfDay;
-      const isPaid = o.status === 'ÃÃ£ thanh toÃ¡n' || o.status === 'Paid';
+      const isPaid = o.status === '�� thanh to�n' || o.status === 'Paid';
       return isToday && isPaid;
     });
 
@@ -2765,10 +2765,10 @@ export default function AdminPage() {
     const pieData = topItems.map(([, qty]) => qty);
 
     const itemChartData = {
-      labels: pieLabels.length ? pieLabels : [lang === 'vi' ? 'Chua cÃ³ d? li?u' : 'No data'],
+      labels: pieLabels.length ? pieLabels : [lang === 'vi' ? 'Chua c� d? li?u' : 'No data'],
       datasets: [
         {
-          label: lang === 'vi' ? 'S? lu?ng bÃ¡n' : 'Sold quantity',
+          label: lang === 'vi' ? 'S? lu?ng b�n' : 'Sold quantity',
           data: pieData.length ? pieData : [1],
           backgroundColor: pieLabels.length
             ? pieLabels.map((_, i) => ['#f97316', '#3b82f6', '#10b981', '#eab308', '#ef4444', '#8b5cf6', '#06b6d4', '#f43f5e'][i % 8])
@@ -2783,11 +2783,11 @@ export default function AdminPage() {
       <div className="space-y-4">
         <div className="flex gap-4 mb-4">
           <div className={`p-4 rounded flex-1 ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900 border border-zinc-200'}`}>
-            <h3 className="text-sm">{lang==='vi'?'Doanh thu hÃ´m nay':'Today revenue'}</h3>
+            <h3 className="text-sm">{lang==='vi'?'Doanh thu h�m nay':'Today revenue'}</h3>
             <p className="text-2xl font-bold">{formatVND(todayRevenue)}</p>
           </div>
           <div className={`p-4 rounded flex-1 ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900 border border-zinc-200'}`}>
-            <h3 className="text-sm">{lang==='vi'?'Bill dÃ£ thanh toÃ¡n hÃ´m nay':'Paid bills today'}</h3>
+            <h3 className="text-sm">{lang==='vi'?'Bill d� thanh to�n h�m nay':'Paid bills today'}</h3>
             <p className="text-2xl font-bold">{todayBills}</p>
           </div>
         </div>
@@ -2795,10 +2795,10 @@ export default function AdminPage() {
         <div className={`p-4 rounded ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900 border border-zinc-200'}`}>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-bold">{lang === 'vi' ? 'Bi?u d? trÃ²n mÃ³n bÃ¡n ch?y hÃ´m nay' : 'Today best-selling items pie chart'}</h3>
+              <h3 className="text-lg font-bold">{lang === 'vi' ? 'Bi?u d? tr�n m�n b�n ch?y h�m nay' : 'Today best-selling items pie chart'}</h3>
               <p className="text-sm opacity-70">
                 {lang === 'vi'
-                  ? `T? reset theo ngÃ y m?i (${startOfDay.toLocaleDateString('vi-VN')})`
+                  ? `T? reset theo ng�y m?i (${startOfDay.toLocaleDateString('vi-VN')})`
                   : `Auto resets each new day (${startOfDay.toLocaleDateString('en-US')})`}
               </p>
             </div>
@@ -2806,7 +2806,7 @@ export default function AdminPage() {
           </div>
 
           {topItems.length === 0 ? (
-            <p className="italic text-sm">{lang === 'vi' ? 'HÃ´m nay chua cÃ³ mÃ³n nÃ o du?c thanh toÃ¡n.' : 'No paid item sales yet today.'}</p>
+            <p className="italic text-sm">{lang === 'vi' ? 'H�m nay chua c� m�n n�o du?c thanh to�n.' : 'No paid item sales yet today.'}</p>
           ) : (
             <div className="h-80">
               <Pie data={itemChartData} options={{
@@ -2868,16 +2868,16 @@ export default function AdminPage() {
 
     return (
       <div className="space-y-4">
-        <h2 className="text-xl mb-4">{lang === 'vi' ? 'Qu?n lÃ½ kho' : 'Inventory Management'}</h2>
-        <p className="text-sm text-zinc-200">{lang === 'vi' ? 'Nh?p tr?c ti?p s? lu?ng hi?n cÃ³. Khi don du?c thanh toÃ¡n, h? th?ng s? t? tr? kho.' : 'Enter the current quantity directly. Paid orders will reduce stock automatically.'}</p>
+        <h2 className="text-xl mb-4">{lang === 'vi' ? 'Qu?n l� kho' : 'Inventory Management'}</h2>
+        <p className="text-sm text-zinc-200">{lang === 'vi' ? 'Nh?p tr?c ti?p s? lu?ng hi?n c�. Khi don du?c thanh to�n, h? th?ng s? t? tr? kho.' : 'Enter the current quantity directly. Paid orders will reduce stock automatically.'}</p>
         <table className="w-full table-fixed text-sm border-collapse">
           <thead>
             <tr className="border-b">
-              <th className="w-[28%] px-3 py-3 text-left">{lang === 'vi' ? 'MÃ³n' : 'Item'}</th>
+              <th className="w-[28%] px-3 py-3 text-left">{lang === 'vi' ? 'M�n' : 'Item'}</th>
               <th className="w-[18%] px-3 py-3 text-center">{lang === 'vi' ? 'T?n' : 'Stock'}</th>
-              <th className="w-[16%] px-3 py-3 text-center">{lang === 'vi' ? 'ÃÃ£ bÃ¡n' : 'Sold'}</th>
-              <th className="w-[16%] px-3 py-3 text-center">{lang === 'vi' ? 'Hi?n cÃ²n' : 'Remaining'}</th>
-              <th className="w-[22%] px-3 py-3 text-center">{lang === 'vi' ? 'Tr?ng thÃ¡i' : 'Status'}</th>
+              <th className="w-[16%] px-3 py-3 text-center">{lang === 'vi' ? '�� b�n' : 'Sold'}</th>
+              <th className="w-[16%] px-3 py-3 text-center">{lang === 'vi' ? 'Hi?n c�n' : 'Remaining'}</th>
+              <th className="w-[22%] px-3 py-3 text-center">{lang === 'vi' ? 'Tr?ng th�i' : 'Status'}</th>
             </tr>
           </thead>
           <tbody>
@@ -2909,7 +2909,7 @@ export default function AdminPage() {
                   <td className="px-3 py-3 text-center align-middle font-semibold">{remaining}</td>
                   <td className="px-3 py-3 text-center align-middle">
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${remaining > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                      {remaining > 0 ? (lang === 'vi' ? 'CÃ²n hÃ ng' : 'In stock') : lang === 'vi' ? 'H?t hÃ ng' : 'Out of stock'}
+                      {remaining > 0 ? (lang === 'vi' ? 'C�n h�ng' : 'In stock') : lang === 'vi' ? 'H?t h�ng' : 'Out of stock'}
                     </span>
                   </td>
                 </tr>
@@ -2946,13 +2946,13 @@ export default function AdminPage() {
       const normalizedFloor = floor.trim();
       const normalizedTable = tableNumber.trim().padStart(2, '0');
       if (!normalizedTable || !normalizedFloor) {
-        showTableMessage('error', lang === 'vi' ? 'Vui lÃ²ng nh?p s? bÃ n vÃ  t?ng.' : 'Please enter both table number and floor.');
+        showTableMessage('error', lang === 'vi' ? 'Vui l�ng nh?p s? b�n v� t?ng.' : 'Please enter both table number and floor.');
         return;
       }
 
       const id = `${normalizedFloor}-${normalizedTable}`;
       if (tables.some(table => table.id === id)) {
-        showTableMessage('error', lang === 'vi' ? 'BÃ n nÃ y dÃ£ cÃ³ QR r?i.' : 'This table already has a QR code.');
+        showTableMessage('error', lang === 'vi' ? 'B�n n�y d� c� QR r?i.' : 'This table already has a QR code.');
         return;
       }
 
@@ -2974,13 +2974,13 @@ export default function AdminPage() {
 
       saveTables(next);
       setTableNumber('');
-      showTableMessage('success', lang === 'vi' ? `ÃÃ£ t?o QR cho bÃ n ${normalizedTable}, t?ng ${normalizedFloor}.` : `QR created for table ${normalizedTable}, floor ${normalizedFloor}.`);
+      showTableMessage('success', lang === 'vi' ? `�� t?o QR cho b�n ${normalizedTable}, t?ng ${normalizedFloor}.` : `QR created for table ${normalizedTable}, floor ${normalizedFloor}.`);
     };
 
     const regenerateQrs = () => {
       const next = tables.map(table => ({ ...table, qr: makeQrUrl(table.table, table.floor) }));
       saveTables(next);
-      showTableMessage('success', lang === 'vi' ? 'ÃÃ£ c?p nh?t l?i toÃ n b? link QR.' : 'All QR links were refreshed.');
+      showTableMessage('success', lang === 'vi' ? '�� c?p nh?t l?i to�n b? link QR.' : 'All QR links were refreshed.');
     };
 
     const toggleActive = (id: string) => {
@@ -2993,7 +2993,7 @@ export default function AdminPage() {
 
     const deleteTable = (id: string) => {
       saveTables(tables.filter(table => table.id !== id));
-      showTableMessage('info', lang === 'vi' ? 'ÃÃ£ xÃ³a bÃ n kh?i danh sÃ¡ch QR.' : 'Table removed from QR list.');
+      showTableMessage('info', lang === 'vi' ? '�� x�a b�n kh?i danh s�ch QR.' : 'Table removed from QR list.');
     };
 
     const printTableQr = (table: TableInfo) => {
@@ -3020,7 +3020,7 @@ export default function AdminPage() {
           <body>
             <div class="sheet">
               <div class="badge">HCH RESTO QR</div>
-              <h1 class="title">BÃ n ${table.table}</h1>
+              <h1 class="title">B�n ${table.table}</h1>
               <p class="subtitle">T?ng ${table.floor}</p>
               <img src="${dataUrl}" alt="QR Table ${table.table}" />
               <p class="url">${table.qr}</p>
@@ -3058,13 +3058,13 @@ export default function AdminPage() {
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
               <span className="inline-flex items-center rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
-                {lang === 'vi' ? 'QR bÃ n an' : 'Table QR'}
+                {lang === 'vi' ? 'QR b�n an' : 'Table QR'}
               </span>
               <div>
-                <h2 className="text-3xl font-extrabold text-white">{lang === 'vi' ? 'T?o QR t?ng bÃ n riÃªng l?' : 'Generate QR per table'}</h2>
+                <h2 className="text-3xl font-extrabold text-white">{lang === 'vi' ? 'T?o QR t?ng b�n ri�ng l?' : 'Generate QR per table'}</h2>
                 <p className="mt-2 max-w-2xl text-sm text-zinc-400">
                   {lang === 'vi'
-                    ? 'T?o t?ng mÃ£ QR theo s? bÃ n vÃ  t?ng, in ho?c t?i PNG d? dÃ¡n lÃªn t?ng bÃ n. KhÃ¡ch quÃ©t mÃ£ s? m? menu vÃ  th?y Ã´ nh?p thÃ´ng tin tru?c khi d?t mÃ³n.'
+                    ? 'T?o t?ng m� QR theo s? b�n v� t?ng, in ho?c t?i PNG d? d�n l�n t?ng b�n. Kh�ch qu�t m� s? m? menu v� th?y � nh?p th�ng tin tru?c khi d?t m�n.'
                     : 'Create QR codes by table and floor, then print or download PNG files for each table. Guests scanning the code open the menu and see the info popup first.'}
                 </p>
               </div>
@@ -3072,7 +3072,7 @@ export default function AdminPage() {
 
             <div className="grid min-w-[280px] grid-cols-3 gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'T?ng bÃ n' : 'Tables'}</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'T?ng b�n' : 'Tables'}</p>
                 <p className="mt-2 text-3xl font-bold text-white">{tables.length}</p>
               </div>
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
@@ -3103,21 +3103,21 @@ export default function AdminPage() {
 
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.35fr]">
           <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-[0_16px_48px_rgba(0,0,0,0.28)]">
-            <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'ThÃªm bÃ n m?i' : 'Add new table'}</h3>
+            <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'Th�m b�n m?i' : 'Add new table'}</h3>
             <p className="mt-2 text-sm text-zinc-400">
               {lang === 'vi'
-                ? 'Nh?p dÃºng s? bÃ n vÃ  t?ng d? t?o QR riÃªng cho t?ng bÃ n.'
+                ? 'Nh?p d�ng s? b�n v� t?ng d? t?o QR ri�ng cho t?ng b�n.'
                 : 'Enter the exact table number and floor to create an individual QR code.'}
             </p>
 
             <div className="mt-6 space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'S? bÃ n' : 'Table number'}</label>
+                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'S? b�n' : 'Table number'}</label>
                 <input
                   type="text"
                   value={tableNumber}
                   onChange={e => setTableNumber(e.target.value.replace(/[^\d]/g, ''))}
-                  placeholder={lang === 'vi' ? 'VÃ­ d?: 12' : 'Example: 12'}
+                  placeholder={lang === 'vi' ? 'V� d?: 12' : 'Example: 12'}
                   className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
                 />
               </div>
@@ -3138,7 +3138,7 @@ export default function AdminPage() {
                 onClick={createTable}
                 className="rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-500"
               >
-                {lang === 'vi' ? 'T?o QR cho bÃ n nÃ y' : 'Create table QR'}
+                {lang === 'vi' ? 'T?o QR cho b�n n�y' : 'Create table QR'}
               </button>
               <button
                 type="button"
@@ -3158,10 +3158,10 @@ export default function AdminPage() {
               >
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="flex-1">
-                    <div className="text-2xl font-black">{lang === 'vi' ? 'BÃ n' : 'Table'} {table.table}</div>
+                    <div className="text-2xl font-black">{lang === 'vi' ? 'B�n' : 'Table'} {table.table}</div>
                     <div className="mt-1 text-sm text-zinc-400">{lang === 'vi' ? 'T?ng' : 'Floor'} {table.floor}</div>
                     <div className="mt-2 text-sm">
-                      {lang === 'vi' ? 'Tr?ng thÃ¡i' : 'Status'}: <span className="font-medium">{table.status === 'empty' ? (lang === 'vi' ? 'Tr?ng' : 'Empty') : table.status === 'occupied' ? (lang === 'vi' ? 'CÃ³ khÃ¡ch' : 'Occupied') : (lang === 'vi' ? 'Ãang order' : 'Ordering')}</span>
+                      {lang === 'vi' ? 'Tr?ng th�i' : 'Status'}: <span className="font-medium">{table.status === 'empty' ? (lang === 'vi' ? 'Tr?ng' : 'Empty') : table.status === 'occupied' ? (lang === 'vi' ? 'C� kh�ch' : 'Occupied') : (lang === 'vi' ? '�ang order' : 'Ordering')}</span>
                     </div>
                   </div>
 
@@ -3171,7 +3171,7 @@ export default function AdminPage() {
                       onClick={() => toggleActive(table.id)}
                       className={`rounded-full px-3 py-2 text-xs font-semibold ${table.active ? 'bg-green-600 text-white' : 'bg-zinc-500 text-white'}`}
                     >
-                      {table.active ? (lang === 'vi' ? 'Ho?t d?ng' : 'Active') : (lang === 'vi' ? 'T?m khoÃ¡' : 'Inactive')}
+                      {table.active ? (lang === 'vi' ? 'Ho?t d?ng' : 'Active') : (lang === 'vi' ? 'T?m kho�' : 'Inactive')}
                     </button>
                     <select
                       value={table.status}
@@ -3179,8 +3179,8 @@ export default function AdminPage() {
                       className={`rounded-2xl border px-3 py-2 text-sm ${isDark ? 'border-zinc-600 bg-zinc-800 text-white' : 'border-zinc-300 bg-white text-zinc-900'}`}
                     >
                       <option value="empty">{lang === 'vi' ? 'Tr?ng' : 'Empty'}</option>
-                      <option value="occupied">{lang === 'vi' ? 'CÃ³ khÃ¡ch' : 'Occupied'}</option>
-                      <option value="ordering">{lang === 'vi' ? 'Ãang order' : 'Ordering'}</option>
+                      <option value="occupied">{lang === 'vi' ? 'C� kh�ch' : 'Occupied'}</option>
+                      <option value="ordering">{lang === 'vi' ? '�ang order' : 'Ordering'}</option>
                     </select>
                   </div>
                 </div>
@@ -3216,7 +3216,7 @@ export default function AdminPage() {
                       onClick={() => deleteTable(table.id)}
                       className="rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm font-semibold text-red-300 transition hover:bg-red-500/20"
                     >
-                      {lang === 'vi' ? 'XÃ³a' : 'Delete'}
+                      {lang === 'vi' ? 'X�a' : 'Delete'}
                     </button>
                   </div>
                 </div>
@@ -3225,7 +3225,7 @@ export default function AdminPage() {
 
             {tables.length === 0 && (
               <div className="md:col-span-2 rounded-3xl border border-dashed border-zinc-700 bg-zinc-900/50 p-12 text-center text-zinc-400">
-                {lang === 'vi' ? 'Chua cÃ³ bÃ n nÃ o du?c t?o QR. HÃ£y thÃªm bÃ n d?u tiÃªn ? kh?i bÃªn trÃ¡i.' : 'No QR tables yet. Add your first table from the panel on the left.'}
+                {lang === 'vi' ? 'Chua c� b�n n�o du?c t?o QR. H�y th�m b�n d?u ti�n ? kh?i b�n tr�i.' : 'No QR tables yet. Add your first table from the panel on the left.'}
               </div>
             )}
           </div>
@@ -3315,7 +3315,7 @@ export default function AdminPage() {
           <body>
             <div class="sheet">
               <div class="badge">HCH RESTO QR</div>
-              <h1 class="title">BÃ n ${table.table}</h1>
+              <h1 class="title">B�n ${table.table}</h1>
               <p class="subtitle">T?ng ${table.floor}</p>
               <img src="${dataUrl}" alt="QR Table ${table.table}" />
               <p class="url">${table.qr}</p>
@@ -3334,10 +3334,10 @@ export default function AdminPage() {
 
     return (
       <div className="space-y-4">
-        <h2 className="text-xl mb-4">{lang === 'vi' ? 'Qu?n lÃ½ bÃ n' : 'Table management'}</h2>
+        <h2 className="text-xl mb-4">{lang === 'vi' ? 'Qu?n l� b�n' : 'Table management'}</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm">{lang === 'vi' ? 'S? bÃ n' : 'Table count'}</label>
+            <label className="block text-sm">{lang === 'vi' ? 'S? b�n' : 'Table count'}</label>
             <input
               type="number"
               min={1}
@@ -3360,7 +3360,7 @@ export default function AdminPage() {
               onClick={createTables}
               className="w-full bg-blue-600 text-white px-4 py-2 rounded"
             >
-              {lang === 'vi' ? 'T?o bÃ n' : 'Generate'}
+              {lang === 'vi' ? 'T?o b�n' : 'Generate'}
             </button>
           </div>
           <div className="flex items-end">
@@ -3382,10 +3382,10 @@ export default function AdminPage() {
             >
               <div className="flex flex-wrap items-start gap-4">
                 <div className="flex-1">
-                  <div className="font-bold">{lang === 'vi' ? 'BÃ n' : 'Table'} {table.table}</div>
+                  <div className="font-bold">{lang === 'vi' ? 'B�n' : 'Table'} {table.table}</div>
                   <div className="text-xs text-zinc-400">{lang === 'vi' ? 'T?ng' : 'Floor'} {table.floor}</div>
                   <div className="mt-1 text-xs">
-                    {lang === 'vi' ? 'Tr?ng thÃ¡i' : 'Status'}: <span className="font-medium">{table.status === 'empty' ? (lang === 'vi' ? 'Tr?ng' : 'Empty') : table.status === 'occupied' ? (lang === 'vi' ? 'CÃ³ khÃ¡ch' : 'Occupied') : (lang === 'vi' ? 'Ãang order' : 'Ordering')}</span>
+                    {lang === 'vi' ? 'Tr?ng th�i' : 'Status'}: <span className="font-medium">{table.status === 'empty' ? (lang === 'vi' ? 'Tr?ng' : 'Empty') : table.status === 'occupied' ? (lang === 'vi' ? 'C� kh�ch' : 'Occupied') : (lang === 'vi' ? '�ang order' : 'Ordering')}</span>
                   </div>
                 </div>
 
@@ -3395,7 +3395,7 @@ export default function AdminPage() {
                     onClick={() => toggleActive(table.id)}
                     className={`text-xs px-2 py-1 rounded ${table.active ? 'bg-green-600 text-white' : 'bg-zinc-500 text-white'}`}
                   >
-                    {table.active ? (lang === 'vi' ? 'Ho?t d?ng' : 'Active') : (lang === 'vi' ? 'T?m khoÃ¡' : 'Inactive')}
+                    {table.active ? (lang === 'vi' ? 'Ho?t d?ng' : 'Active') : (lang === 'vi' ? 'T?m kho�' : 'Inactive')}
                   </button>
                   <select
                     value={table.status}
@@ -3403,8 +3403,8 @@ export default function AdminPage() {
                     className={`text-xs border rounded p-1 ${isDark ? 'bg-zinc-700 text-white border-zinc-600' : 'bg-white text-zinc-900 border-zinc-300'}`}
                   >
                     <option value="empty">{lang === 'vi' ? 'Tr?ng' : 'Empty'}</option>
-                    <option value="occupied">{lang === 'vi' ? 'CÃ³ khÃ¡ch' : 'Occupied'}</option>
-                    <option value="ordering">{lang === 'vi' ? 'Ãang order' : 'Ordering'}</option>
+                    <option value="occupied">{lang === 'vi' ? 'C� kh�ch' : 'Occupied'}</option>
+                    <option value="ordering">{lang === 'vi' ? '�ang order' : 'Ordering'}</option>
                   </select>
                   <button
                     type="button"
@@ -3418,7 +3418,7 @@ export default function AdminPage() {
                     onClick={() => deleteTable(table.id)}
                     className="text-xs px-2 py-1 rounded bg-red-600 text-white"
                   >
-                    {lang === 'vi' ? 'XÃ³a' : 'Delete'}
+                    {lang === 'vi' ? 'X�a' : 'Delete'}
                   </button>
                 </div>
               </div>
@@ -3460,7 +3460,7 @@ const AccountsPanel: React.FC<{
     const addAccount = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!username || !password || !name) {
-        setMsg(lang === 'vi' ? 'Vui lÃ²ng di?n d?y d?' : 'Please fill all fields');
+        setMsg(lang === 'vi' ? 'Vui l�ng di?n d?y d?' : 'Please fill all fields');
         return;
       }
 
@@ -3472,13 +3472,13 @@ const AccountsPanel: React.FC<{
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMsg(data.error || (lang === 'vi' ? 'KhÃ´ng th? t?o tÃ i kho?n.' : 'Unable to create account.'));
+        setMsg(data.error || (lang === 'vi' ? 'Kh�ng th? t?o t�i kho?n.' : 'Unable to create account.'));
         return;
       }
 
       await refreshAccounts();
       setUsername(''); setPassword(''); setName('');
-      setMsg(lang === 'vi' ? 'ThÃªm thÃ nh cÃ´ng' : 'Added successfully');
+      setMsg(lang === 'vi' ? 'Th�m th�nh c�ng' : 'Added successfully');
     };
 
     const sendTestOtpEmail = async () => {
@@ -3489,13 +3489,13 @@ const AccountsPanel: React.FC<{
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMsg(data.error || (lang === 'vi' ? 'KhÃ´ng th? g?i email OTP th?.' : 'Unable to send OTP test email.'));
+        setMsg(data.error || (lang === 'vi' ? 'Kh�ng th? g?i email OTP th?.' : 'Unable to send OTP test email.'));
         return;
       }
 
       setMsg(
         lang === 'vi'
-          ? `ÃÃ£ g?i email OTP th? t?i ${data.email}.`
+          ? `�� g?i email OTP th? t?i ${data.email}.`
           : `OTP test email sent to ${data.email}.`
       );
     };
@@ -3516,12 +3516,12 @@ const AccountsPanel: React.FC<{
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMsg(data.error || (lang === 'vi' ? 'KhÃ´ng th? luu c?u hÃ¬nh b?o m?t.' : 'Unable to save security settings.'));
+        setMsg(data.error || (lang === 'vi' ? 'Kh�ng th? luu c?u h�nh b?o m?t.' : 'Unable to save security settings.'));
         return;
       }
 
       await refreshAccounts();
-      setMsg(lang === 'vi' ? 'ÃÃ£ luu email vÃ  xÃ¡c th?c 2 l?p cho admin.' : 'Admin email and 2FA settings saved.');
+      setMsg(lang === 'vi' ? '�� luu email v� x�c th?c 2 l?p cho admin.' : 'Admin email and 2FA settings saved.');
     };
 
     const deleteAccount = async (id: string) => {
@@ -3537,16 +3537,16 @@ const AccountsPanel: React.FC<{
 
     return (
       <div className="space-y-4">
-        <h2 className="text-xl mb-4">{lang === 'vi' ? 'Qu?n lÃ½ tÃ i kho?n order' : 'Order Accounts Management'}</h2>
+        <h2 className="text-xl mb-4">{lang === 'vi' ? 'Qu?n l� t�i kho?n order' : 'Order Accounts Management'}</h2>
         {currentAdmin && (
           <form onSubmit={saveAdminSecurity} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="md:col-span-2">
-              <label className="block text-sm">{lang === 'vi' ? 'Email nh?n mÃ£ 2 l?p c?a admin' : 'Admin email for OTP'}</label>
+              <label className="block text-sm">{lang === 'vi' ? 'Email nh?n m� 2 l?p c?a admin' : 'Admin email for OTP'}</label>
               <input value={email} onChange={e => setEmail(e.target.value)} className="w-full border p-2 rounded" />
             </div>
             <label className="flex items-center gap-3 pt-6">
               <input type="checkbox" checked={twoFactorEnabled} onChange={e => setTwoFactorEnabled(e.target.checked)} />
-              <span>{lang === 'vi' ? 'B?t xÃ¡c th?c 2 l?p' : 'Enable two-factor authentication'}</span>
+              <span>{lang === 'vi' ? 'B?t x�c th?c 2 l?p' : 'Enable two-factor authentication'}</span>
             </label>
             <button type="submit" className="bg-orange-500 text-white px-4 py-2 rounded md:col-span-3">
               {lang === 'vi' ? 'Luu b?o m?t admin' : 'Save admin security'}
@@ -3563,7 +3563,7 @@ const AccountsPanel: React.FC<{
 
         <form onSubmit={addAccount} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
-            <label className="block text-sm">{lang === 'vi' ? 'TÃªn dang nh?p' : 'Username'}</label>
+            <label className="block text-sm">{lang === 'vi' ? 'T�n dang nh?p' : 'Username'}</label>
             <input value={username} onChange={e => setUsername(e.target.value)} className="w-full border p-2 rounded" />
           </div>
           <div>
@@ -3571,21 +3571,21 @@ const AccountsPanel: React.FC<{
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full border p-2 rounded" />
           </div>
           <div>
-            <label className="block text-sm">{lang === 'vi' ? 'TÃªn' : 'Name'}</label>
+            <label className="block text-sm">{lang === 'vi' ? 'T�n' : 'Name'}</label>
             <input value={name} onChange={e => setName(e.target.value)} className="w-full border p-2 rounded" />
           </div>
-          <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded col-span-full">{lang === 'vi' ? 'ThÃªm tÃ i kho?n' : 'Add Account'}</button>
+          <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded col-span-full">{lang === 'vi' ? 'Th�m t�i kho?n' : 'Add Account'}</button>
         </form>
         {msg && <p className="text-green-500">{msg}</p>}
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b">
-              <th className="p-2">{lang === 'vi' ? 'TÃªn dang nh?p' : 'Username'}</th>
-              <th className="p-2">{lang === 'vi' ? 'TÃªn' : 'Name'}</th>
-              <th className="p-2">{lang === 'vi' ? 'Vai trÃ²' : 'Role'}</th>
+              <th className="p-2">{lang === 'vi' ? 'T�n dang nh?p' : 'Username'}</th>
+              <th className="p-2">{lang === 'vi' ? 'T�n' : 'Name'}</th>
+              <th className="p-2">{lang === 'vi' ? 'Vai tr�' : 'Role'}</th>
               <th className="p-2">Email</th>
               <th className="p-2">2FA</th>
-              <th className="p-2">{lang === 'vi' ? 'HÃ nh d?ng' : 'Actions'}</th>
+              <th className="p-2">{lang === 'vi' ? 'H�nh d?ng' : 'Actions'}</th>
             </tr>
           </thead>
           <tbody>
@@ -3598,7 +3598,7 @@ const AccountsPanel: React.FC<{
                 <td className="p-2">{acc.twoFactorEnabled ? 'On' : 'Off'}</td>
                 <td className="p-2">
                   {acc.id !== currentUserId && (
-                    <button onClick={() => deleteAccount(acc.id)} className="text-red-500 underline">{lang === 'vi' ? 'XÃ³a' : 'Delete'}</button>
+                    <button onClick={() => deleteAccount(acc.id)} className="text-red-500 underline">{lang === 'vi' ? 'X�a' : 'Delete'}</button>
                   )}
                 </td>
               </tr>
@@ -3647,7 +3647,7 @@ const AccountsPanel: React.FC<{
       setMsg(null);
 
       if (!staffUsername.trim() || !staffPassword.trim() || !staffName.trim()) {
-        showMessage('error', lang === 'vi' ? 'Vui lÃ²ng nh?p d?y d? tÃªn dang nh?p, m?t kh?u vÃ  tÃªn hi?n th?.' : 'Please complete username, password and display name.');
+        showMessage('error', lang === 'vi' ? 'Vui l�ng nh?p d?y d? t�n dang nh?p, m?t kh?u v� t�n hi?n th?.' : 'Please complete username, password and display name.');
         return;
       }
 
@@ -3669,7 +3669,7 @@ const AccountsPanel: React.FC<{
 
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          showMessage('error', data.error || (lang === 'vi' ? 'KhÃ´ng th? t?o tÃ i kho?n nhÃ¢n viÃªn.' : 'Unable to create staff account.'));
+          showMessage('error', data.error || (lang === 'vi' ? 'Kh�ng th? t?o t�i kho?n nh�n vi�n.' : 'Unable to create staff account.'));
           return;
         }
 
@@ -3677,7 +3677,7 @@ const AccountsPanel: React.FC<{
         setStaffUsername('');
         setStaffPassword('');
         setStaffName('');
-        showMessage('success', lang === 'vi' ? 'ÃÃ£ thÃªm tÃ i kho?n nhÃ¢n viÃªn m?i.' : 'Staff account created successfully.');
+        showMessage('success', lang === 'vi' ? '�� th�m t�i kho?n nh�n vi�n m?i.' : 'Staff account created successfully.');
       } finally {
         setIsCreatingAccount(false);
       }
@@ -3692,11 +3692,11 @@ const AccountsPanel: React.FC<{
         const data = await res.json().catch(() => ({}));
 
         if (!res.ok) {
-          showMessage('error', data.error || (lang === 'vi' ? 'KhÃ´ng th? g?i email OTP th?.' : 'Unable to send OTP test email.'));
+          showMessage('error', data.error || (lang === 'vi' ? 'Kh�ng th? g?i email OTP th?.' : 'Unable to send OTP test email.'));
           return;
         }
 
-        showMessage('success', lang === 'vi' ? `ÃÃ£ g?i email OTP th? t?i ${data.email}.` : `OTP test email sent to ${data.email}.`);
+        showMessage('success', lang === 'vi' ? `�� g?i email OTP th? t?i ${data.email}.` : `OTP test email sent to ${data.email}.`);
       } finally {
         setIsSendingOtpTest(false);
       }
@@ -3709,7 +3709,7 @@ const AccountsPanel: React.FC<{
       const trimmedEmail = adminEmail.trim();
       const trimmedPhone = adminPhone.trim();
       if (adminTwoFactorEnabled && !trimmedEmail) {
-        showMessage('error', lang === 'vi' ? 'C?n nh?p email admin tru?c khi b?t xÃ¡c th?c 2 l?p.' : 'Admin email is required before enabling 2FA.');
+        showMessage('error', lang === 'vi' ? 'C?n nh?p email admin tru?c khi b?t x�c th?c 2 l?p.' : 'Admin email is required before enabling 2FA.');
         return;
       }
 
@@ -3730,7 +3730,7 @@ const AccountsPanel: React.FC<{
 
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          showMessage('error', data.error || (lang === 'vi' ? 'KhÃ´ng th? luu c?u hÃ¬nh b?o m?t admin.' : 'Unable to save admin security settings.'));
+          showMessage('error', data.error || (lang === 'vi' ? 'Kh�ng th? luu c?u h�nh b?o m?t admin.' : 'Unable to save admin security settings.'));
           return;
         }
 
@@ -3739,8 +3739,8 @@ const AccountsPanel: React.FC<{
         showMessage(
           'success',
           adminTwoFactorEnabled
-            ? (lang === 'vi' ? 'ÃÃ£ luu email admin vÃ  b?t xÃ¡c th?c 2 l?p.' : 'Admin email saved and 2FA enabled.')
-            : (lang === 'vi' ? 'ÃÃ£ c?p nh?t c?u hÃ¬nh tÃ i kho?n admin.' : 'Admin account settings updated.')
+            ? (lang === 'vi' ? '�� luu email admin v� b?t x�c th?c 2 l?p.' : 'Admin email saved and 2FA enabled.')
+            : (lang === 'vi' ? '�� c?p nh?t c?u h�nh t�i kho?n admin.' : 'Admin account settings updated.')
         );
       } finally {
         setIsSavingSecurity(false);
@@ -3760,12 +3760,12 @@ const AccountsPanel: React.FC<{
 
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          showMessage('error', data.error || (lang === 'vi' ? 'KhÃ´ng th? xÃ³a tÃ i kho?n.' : 'Unable to delete account.'));
+          showMessage('error', data.error || (lang === 'vi' ? 'Kh�ng th? x�a t�i kho?n.' : 'Unable to delete account.'));
           return;
         }
 
         await refreshAccounts();
-        showMessage('success', lang === 'vi' ? 'ÃÃ£ xÃ³a tÃ i kho?n nhÃ¢n viÃªn.' : 'Staff account deleted.');
+        showMessage('success', lang === 'vi' ? '�� x�a t�i kho?n nh�n vi�n.' : 'Staff account deleted.');
       } finally {
         setDeletingId(null);
       }
@@ -3780,10 +3780,10 @@ const AccountsPanel: React.FC<{
                 {lang === 'vi' ? 'B?o m?t qu?n tr?' : 'Admin security'}
               </span>
               <div>
-                <h2 className="text-3xl font-extrabold text-white">{lang === 'vi' ? 'Qu?n lÃ½ tÃ i kho?n' : 'Account Management'}</h2>
+                <h2 className="text-3xl font-extrabold text-white">{lang === 'vi' ? 'Qu?n l� t�i kho?n' : 'Account Management'}</h2>
                 <p className="mt-2 max-w-2xl text-sm text-zinc-400">
                   {lang === 'vi'
-                    ? 'Qu?n lÃ½ tÃ i kho?n nhÃ¢n viÃªn, email nh?n OTP vÃ  l?p b?o m?t dang nh?p cho trang admin ? cÃ¹ng m?t noi.'
+                    ? 'Qu?n l� t�i kho?n nh�n vi�n, email nh?n OTP v� l?p b?o m?t dang nh?p cho trang admin ? c�ng m?t noi.'
                     : 'Manage staff accounts, OTP delivery email, and admin login protection in one place.'}
                 </p>
               </div>
@@ -3791,13 +3791,13 @@ const AccountsPanel: React.FC<{
 
             <div className="grid min-w-[260px] grid-cols-2 gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'TÃ i kho?n' : 'Accounts'}</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{lang === 'vi' ? 'T�i kho?n' : 'Accounts'}</p>
                 <p className="mt-2 text-3xl font-bold text-white">{accounts.length}</p>
               </div>
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">2FA</p>
                 <p className={`mt-2 text-xl font-bold ${currentAdmin?.twoFactorEnabled ? 'text-emerald-400' : 'text-zinc-300'}`}>
-                  {currentAdmin?.twoFactorEnabled ? (lang === 'vi' ? 'Ãang b?t' : 'Enabled') : (lang === 'vi' ? 'Ãang t?t' : 'Disabled')}
+                  {currentAdmin?.twoFactorEnabled ? (lang === 'vi' ? '�ang b?t' : 'Enabled') : (lang === 'vi' ? '�ang t?t' : 'Disabled')}
                 </p>
               </div>
             </div>
@@ -3822,10 +3822,10 @@ const AccountsPanel: React.FC<{
           <form onSubmit={saveAdminSecurity} className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-[0_16px_48px_rgba(0,0,0,0.28)]">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'B?o m?t tÃ i kho?n admin' : 'Admin security'}</h3>
+                <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'B?o m?t t�i kho?n admin' : 'Admin security'}</h3>
                 <p className="mt-1 text-sm text-zinc-400">
                   {lang === 'vi'
-                    ? 'Luu email OTP, s? di?n tho?i ch? vÃ  l?p b?o m?t dang nh?p cho tÃ i kho?n admin.'
+                    ? 'Luu email OTP, s? di?n tho?i ch? v� l?p b?o m?t dang nh?p cho t�i kho?n admin.'
                     : 'Manage the OTP email, owner phone number, and login protection for the admin account.'}
                 </p>
               </div>
@@ -3836,7 +3836,7 @@ const AccountsPanel: React.FC<{
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'TÃ i kho?n admin' : 'Admin account'}</p>
+                <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'T�i kho?n admin' : 'Admin account'}</p>
                 <p className="mt-2 text-base font-semibold text-white">{currentAdmin?.username || 'admin'}</p>
               </div>
               <div>
@@ -3863,14 +3863,14 @@ const AccountsPanel: React.FC<{
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-medium text-zinc-200">
                   {lang === 'vi' ? 'M?t kh?u admin m?i' : 'New admin password'}
-                  <span className="ml-2 text-xs text-zinc-500">{lang === 'vi' ? '(khÃ´ng b?t bu?c)' : '(optional)'}</span>
+                  <span className="ml-2 text-xs text-zinc-500">{lang === 'vi' ? '(kh�ng b?t bu?c)' : '(optional)'}</span>
                 </label>
                 <input
                   type="password"
                   value={adminPassword}
                   onChange={e => setAdminPassword(e.target.value)}
                   autoComplete="new-password"
-                  placeholder={lang === 'vi' ? 'Ã? tr?ng n?u khÃ´ng d?i m?t kh?u' : 'Leave blank to keep current password'}
+                  placeholder={lang === 'vi' ? '�? tr?ng n?u kh�ng d?i m?t kh?u' : 'Leave blank to keep current password'}
                   className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500"
                 />
               </div>
@@ -3878,10 +3878,10 @@ const AccountsPanel: React.FC<{
 
             <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/80 p-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="font-semibold text-white">{lang === 'vi' ? 'XÃ¡c th?c 2 l?p cho admin' : 'Two-factor authentication'}</p>
+                <p className="font-semibold text-white">{lang === 'vi' ? 'X�c th?c 2 l?p cho admin' : 'Two-factor authentication'}</p>
                 <p className="mt-1 text-sm text-zinc-400">
                   {lang === 'vi'
-                    ? 'Khuy?n ngh? b?t sau khi dÃ£ ki?m tra g?i email OTP thÃ nh cÃ´ng.'
+                    ? 'Khuy?n ngh? b?t sau khi d� ki?m tra g?i email OTP th�nh c�ng.'
                     : 'Recommended after confirming OTP emails are sent successfully.'}
                 </p>
               </div>
@@ -3894,7 +3894,7 @@ const AccountsPanel: React.FC<{
                     : 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700'
                 }`}
               >
-                {adminTwoFactorEnabled ? (lang === 'vi' ? 'Ãang b?t' : 'Enabled') : (lang === 'vi' ? 'B?t 2FA' : 'Enable 2FA')}
+                {adminTwoFactorEnabled ? (lang === 'vi' ? '�ang b?t' : 'Enabled') : (lang === 'vi' ? 'B?t 2FA' : 'Enable 2FA')}
               </button>
             </div>
 
@@ -3904,7 +3904,7 @@ const AccountsPanel: React.FC<{
                 disabled={isSavingSecurity}
                 className="rounded-2xl bg-orange-500 px-5 py-3 font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSavingSecurity ? (lang === 'vi' ? 'Ãang luu...' : 'Saving...') : (lang === 'vi' ? 'Luu c?u hÃ¬nh admin' : 'Save admin settings')}
+                {isSavingSecurity ? (lang === 'vi' ? '�ang luu...' : 'Saving...') : (lang === 'vi' ? 'Luu c?u h�nh admin' : 'Save admin settings')}
               </button>
               <button
                 type="button"
@@ -3912,30 +3912,30 @@ const AccountsPanel: React.FC<{
                 disabled={isSendingOtpTest || !adminEmail.trim()}
                 className="rounded-2xl border border-blue-500/30 bg-blue-500/10 px-5 py-3 font-semibold text-blue-300 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSendingOtpTest ? (lang === 'vi' ? 'Ãang g?i...' : 'Sending...') : (lang === 'vi' ? 'G?i th? email OTP' : 'Send test OTP email')}
+                {isSendingOtpTest ? (lang === 'vi' ? '�ang g?i...' : 'Sending...') : (lang === 'vi' ? 'G?i th? email OTP' : 'Send test OTP email')}
               </button>
             </div>
           </form>
 
           <form onSubmit={addAccount} className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-[0_16px_48px_rgba(0,0,0,0.28)]">
-            <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'ThÃªm tÃ i kho?n nhÃ¢n viÃªn' : 'Create staff account'}</h3>
+            <h3 className="text-xl font-bold text-white">{lang === 'vi' ? 'Th�m t�i kho?n nh�n vi�n' : 'Create staff account'}</h3>
             <p className="mt-1 text-sm text-zinc-400">
               {lang === 'vi'
-                ? 'T?o tÃ i kho?n nhÃ¢n viÃªn order riÃªng, khÃ´ng ?nh hu?ng tÃ i kho?n admin.'
+                ? 'T?o t�i kho?n nh�n vi�n order ri�ng, kh�ng ?nh hu?ng t�i kho?n admin.'
                 : 'Create a dedicated order staff account without affecting the admin account.'}
             </p>
 
             <div className="mt-6 space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'TÃªn dang nh?p' : 'Username'}</label>
-                <input value={staffUsername} onChange={e => setStaffUsername(e.target.value)} autoComplete="off" name="staff_username_new" placeholder={lang === 'vi' ? 'VÃ­ d?: order-ca-2' : 'Example: order-shift-2'} className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
+                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'T�n dang nh?p' : 'Username'}</label>
+                <input value={staffUsername} onChange={e => setStaffUsername(e.target.value)} autoComplete="off" name="staff_username_new" placeholder={lang === 'vi' ? 'V� d?: order-ca-2' : 'Example: order-shift-2'} className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'M?t kh?u' : 'Password'}</label>
                 <input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} autoComplete="new-password" name="staff_password_new" className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'TÃªn hi?n th?' : 'Display name'}</label>
+                <label className="mb-2 block text-sm font-medium text-zinc-200">{lang === 'vi' ? 'T�n hi?n th?' : 'Display name'}</label>
                 <input value={staffName} onChange={e => setStaffName(e.target.value)} autoComplete="off" name="staff_display_name" className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-orange-500" />
               </div>
             </div>
@@ -3945,7 +3945,7 @@ const AccountsPanel: React.FC<{
               disabled={isCreatingAccount}
               className="mt-6 w-full rounded-2xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isCreatingAccount ? (lang === 'vi' ? 'Ãang t?o...' : 'Creating...') : (lang === 'vi' ? 'ThÃªm tÃ i kho?n nhÃ¢n viÃªn' : 'Create staff account')}
+              {isCreatingAccount ? (lang === 'vi' ? '�ang t?o...' : 'Creating...') : (lang === 'vi' ? 'Th�m t�i kho?n nh�n vi�n' : 'Create staff account')}
             </button>
           </form>
         </div>
@@ -3953,15 +3953,15 @@ const AccountsPanel: React.FC<{
         <div className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/80 shadow-[0_16px_48px_rgba(0,0,0,0.22)]">
           <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-5">
             <div>
-              <h3 className="text-lg font-bold text-white">{lang === 'vi' ? 'Danh sÃ¡ch tÃ i kho?n' : 'Account list'}</h3>
+              <h3 className="text-lg font-bold text-white">{lang === 'vi' ? 'Danh s�ch t�i kho?n' : 'Account list'}</h3>
               <p className="mt-1 text-sm text-zinc-400">
                 {lang === 'vi'
-                  ? 'Theo dÃµi nhanh vai trÃ², email, s? di?n tho?i vÃ  tr?ng thÃ¡i b?o m?t c?a t?ng tÃ i kho?n.'
+                  ? 'Theo d�i nhanh vai tr�, email, s? di?n tho?i v� tr?ng th�i b?o m?t c?a t?ng t�i kho?n.'
                   : 'Quickly review roles, emails, phone numbers, and security status for each account.'}
               </p>
             </div>
             <span className="rounded-full border border-zinc-700 bg-zinc-950 px-3 py-1 text-xs font-semibold text-zinc-300">
-              {accounts.length} {lang === 'vi' ? 'tÃ i kho?n' : 'accounts'}
+              {accounts.length} {lang === 'vi' ? 't�i kho?n' : 'accounts'}
             </span>
           </div>
 
@@ -3969,12 +3969,12 @@ const AccountsPanel: React.FC<{
             <table className="min-w-full text-sm">
               <thead className="bg-zinc-950/80 text-zinc-400">
                 <tr>
-                  <th className="px-6 py-4 text-left font-medium">{lang === 'vi' ? 'TÃ i kho?n' : 'Account'}</th>
+                  <th className="px-6 py-4 text-left font-medium">{lang === 'vi' ? 'T�i kho?n' : 'Account'}</th>
                   <th className="px-6 py-4 text-left font-medium">Email</th>
-                  <th className="px-6 py-4 text-left font-medium">{lang === 'vi' ? 'SÃT' : 'Phone'}</th>
-                  <th className="px-6 py-4 text-left font-medium">{lang === 'vi' ? 'Vai trÃ²' : 'Role'}</th>
+                  <th className="px-6 py-4 text-left font-medium">{lang === 'vi' ? 'S�T' : 'Phone'}</th>
+                  <th className="px-6 py-4 text-left font-medium">{lang === 'vi' ? 'Vai tr�' : 'Role'}</th>
                   <th className="px-6 py-4 text-left font-medium">2FA</th>
-                  <th className="px-6 py-4 text-right font-medium">{lang === 'vi' ? 'Thao tÃ¡c' : 'Actions'}</th>
+                  <th className="px-6 py-4 text-right font-medium">{lang === 'vi' ? 'Thao t�c' : 'Actions'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -3990,7 +3990,7 @@ const AccountsPanel: React.FC<{
                     <td className="px-6 py-4 text-zinc-300">{acc.phone || '--'}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${acc.role === 'admin' ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
-                        {acc.role === 'admin' ? 'Admin' : (lang === 'vi' ? 'NhÃ¢n viÃªn' : 'Staff')}
+                        {acc.role === 'admin' ? 'Admin' : (lang === 'vi' ? 'Nh�n vi�n' : 'Staff')}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -4000,7 +4000,7 @@ const AccountsPanel: React.FC<{
                     </td>
                     <td className="px-6 py-4 text-right">
                       {acc.id === currentUserId ? (
-                        <span className="text-xs text-zinc-500">{lang === 'vi' ? 'TÃ i kho?n dang dÃ¹ng' : 'Current account'}</span>
+                        <span className="text-xs text-zinc-500">{lang === 'vi' ? 'T�i kho?n dang d�ng' : 'Current account'}</span>
                       ) : (
                         <button
                           type="button"
@@ -4008,7 +4008,7 @@ const AccountsPanel: React.FC<{
                           onClick={() => deleteAccount(acc.id)}
                           className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-2 font-medium text-red-300 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {deletingId === acc.id ? (lang === 'vi' ? 'Ãang xÃ³a...' : 'Deleting...') : (lang === 'vi' ? 'XÃ³a' : 'Delete')}
+                          {deletingId === acc.id ? (lang === 'vi' ? '�ang x�a...' : 'Deleting...') : (lang === 'vi' ? 'X�a' : 'Delete')}
                         </button>
                       )}
                     </td>
@@ -4017,7 +4017,7 @@ const AccountsPanel: React.FC<{
                 {accounts.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center text-zinc-500">
-                      {lang === 'vi' ? 'Chua cÃ³ tÃ i kho?n nÃ o trong h? th?ng.' : 'No accounts found.'}
+                      {lang === 'vi' ? 'Chua c� t�i kho?n n�o trong h? th?ng.' : 'No accounts found.'}
                     </td>
                   </tr>
                 )}
@@ -4028,7 +4028,7 @@ const AccountsPanel: React.FC<{
           {staffAccounts.length === 0 && (
             <div className="border-t border-zinc-800 px-6 py-4 text-sm text-zinc-500">
               {lang === 'vi'
-                ? 'Hi?n t?i ch? cÃ³ tÃ i kho?n admin. B?n cÃ³ th? t?o thÃªm tÃ i kho?n nhÃ¢n viÃªn ? kh?i bÃªn trÃªn.'
+                ? 'Hi?n t?i ch? c� t�i kho?n admin. B?n c� th? t?o th�m t�i kho?n nh�n vi�n ? kh?i b�n tr�n.'
                 : 'Only the admin account exists right now. You can create staff accounts in the panel above.'}
             </div>
           )}
@@ -4039,7 +4039,7 @@ const AccountsPanel: React.FC<{
 
   const NoAccess: React.FC<{ feature: string }> = ({ feature }) => (
     <div className={`p-6 rounded ${isDark ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900 border border-zinc-200'}`}>
-      <p className="text-lg font-semibold">{lang === 'vi' ? 'KhÃ´ng cÃ³ quy?n' : 'No access'}</p>
+      <p className="text-lg font-semibold">{lang === 'vi' ? 'Kh�ng c� quy?n' : 'No access'}</p>
       <p className="mt-2 text-sm">
         {lang === 'vi'
           ? `B?n c?n quy?n admin d? truy c?p ${feature}.`
@@ -4078,12 +4078,12 @@ const AccountsPanel: React.FC<{
               HCH RESTO ADMIN
             </span>
             <h1 className="mt-6 text-4xl font-black leading-tight text-white">
-              {pendingTwoFactor ? 'XÃ¡c th?c 2 l?p' : 'Ãang nh?p qu?n tr?'}
+              {pendingTwoFactor ? 'X�c th?c 2 l?p' : '�ang nh?p qu?n tr?'}
             </h1>
             <p className="mt-4 max-w-md text-sm leading-7 text-zinc-400">
               {pendingTwoFactor
-                ? `Nh?p mÃ£ OTP dÃ£ g?i t?i ${pendingTwoFactor?.email ?? ''} d? hoÃ n t?t dang nh?p admin.`
-                : 'Ãang nh?p b?ng tÃ i kho?n admin d? truy c?p dashboard, s?n ph?m, don hÃ ng vÃ  cÃ¡c cÃ i d?t b?o m?t.'}
+                ? `Nh?p m� OTP d� g?i t?i ${pendingTwoFactor?.email ?? ''} d? ho�n t?t dang nh?p admin.`
+                : '�ang nh?p b?ng t�i kho?n admin d? truy c?p dashboard, s?n ph?m, don h�ng v� c�c c�i d?t b?o m?t.'}
             </p>
           </div>
 
@@ -4107,11 +4107,11 @@ const AccountsPanel: React.FC<{
               <span className="inline-flex rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
                 HCH RESTO ADMIN
               </span>
-              <h1 className="mt-5 text-3xl font-extrabold text-white">{pendingTwoFactor ? 'XÃ¡c th?c 2 l?p' : 'Ãang nh?p Admin'}</h1>
+              <h1 className="mt-5 text-3xl font-extrabold text-white">{pendingTwoFactor ? 'X�c th?c 2 l?p' : '�ang nh?p Admin'}</h1>
               <p className="mt-2 text-sm text-zinc-400">
                 {pendingTwoFactor
-                  ? `Nh?p mÃ£ OTP dÃ£ g?i t?i ${pendingTwoFactor?.email ?? ''}`
-                  : 'Ãang nh?p b?ng tÃ i kho?n admin d? vÃ o trang qu?n tr?.'}
+                  ? `Nh?p m� OTP d� g?i t?i ${pendingTwoFactor?.email ?? ''}`
+                  : '�ang nh?p b?ng t�i kho?n admin d? v�o trang qu?n tr?.'}
               </p>
             </div>
 
@@ -4131,22 +4131,22 @@ const AccountsPanel: React.FC<{
             {pendingTwoFactor ? (
               <form onSubmit={handleOtpVerify} className="space-y-5">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-200">MÃ£ OTP</label>
+                  <label className="mb-2 block text-sm font-medium text-zinc-200">M� OTP</label>
                   <input
                     value={loginOtp}
                     onChange={e => setLoginOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="Nh?p mÃ£ OTP 6 s?"
+                    placeholder="Nh?p m� OTP 6 s?"
                     className="w-full rounded-2xl border border-zinc-700 bg-black/40 px-4 py-4 text-lg tracking-[0.35em] text-white outline-none transition focus:border-orange-500"
                   />
                 </div>
                 <button type="submit" className="w-full rounded-2xl bg-orange-500 px-4 py-4 font-semibold text-white transition hover:bg-orange-400">
-                  XÃ¡c nh?n OTP
+                  X�c nh?n OTP
                 </button>
               </form>
             ) : (
               <form onSubmit={handleAdminLogin} className="space-y-5">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-zinc-200">TÃªn dang nh?p admin</label>
+                  <label className="mb-2 block text-sm font-medium text-zinc-200">T�n dang nh?p admin</label>
                   <input
                     value={loginUsername}
                     onChange={e => setLoginUsername(e.target.value)}
@@ -4165,7 +4165,7 @@ const AccountsPanel: React.FC<{
                   />
                 </div>
                 <button type="submit" className="w-full rounded-2xl bg-orange-500 px-4 py-4 font-semibold text-white transition hover:bg-orange-400">
-                  Ãang nh?p
+                  �ang nh?p
                 </button>
               </form>
             )}
@@ -4190,11 +4190,11 @@ const AccountsPanel: React.FC<{
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
         <div className="w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-900 p-8 shadow-2xl">
-          <h1 className="text-3xl font-extrabold">{pendingTwoFactor ? 'XÃ¡c th?c 2 l?p' : 'Ãang nh?p Admin'}</h1>
+          <h1 className="text-3xl font-extrabold">{pendingTwoFactor ? 'X�c th?c 2 l?p' : '�ang nh?p Admin'}</h1>
           <p className="mt-2 text-sm text-zinc-400">
             {pendingTwoFactor
-              ? `Nh?p mÃ£ OTP dÃ£ g?i t?i ${pendingTwoFactor?.email ?? ''}`
-              : 'Ãang nh?p b?ng tÃ i kho?n admin d? vÃ o trang qu?n tr?.'}
+              ? `Nh?p m� OTP d� g?i t?i ${pendingTwoFactor?.email ?? ''}`
+              : '�ang nh?p b?ng t�i kho?n admin d? v�o trang qu?n tr?.'}
           </p>
 
           {pendingTwoFactor ? (
@@ -4202,11 +4202,11 @@ const AccountsPanel: React.FC<{
               <input
                 value={loginOtp}
                 onChange={e => setLoginOtp(e.target.value)}
-                placeholder="MÃ£ OTP 6 s?"
+                placeholder="M� OTP 6 s?"
                 className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3"
               />
               <button type="submit" className="w-full rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white">
-                XÃ¡c nh?n OTP
+                X�c nh?n OTP
               </button>
             </form>
           ) : (
@@ -4214,7 +4214,7 @@ const AccountsPanel: React.FC<{
               <input
                 value={loginUsername}
                 onChange={e => setLoginUsername(e.target.value)}
-                placeholder="TÃªn dang nh?p admin"
+                placeholder="T�n dang nh?p admin"
                 className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3"
               />
               <input
@@ -4225,7 +4225,7 @@ const AccountsPanel: React.FC<{
                 className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3"
               />
               <button type="submit" className="w-full rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white">
-                Ãang nh?p
+                �ang nh?p
               </button>
             </form>
           )}
@@ -4248,14 +4248,14 @@ const AccountsPanel: React.FC<{
           { id: 'categories' as Panel, icon: <Tags size={20} />, label: t[lang].categories },
           { id: 'orders' as Panel, icon: <ShoppingCart size={20} />, label: t[lang].orders, badge: true },
           { id: 'customers' as Panel, icon: <Users size={20} />, label: t[lang].customers },
-          { id: 'tables' as Panel, icon: <QrCode size={20} />, label: lang === 'vi' ? 'QR bÃ n an' : 'Table QR' },
+          { id: 'tables' as Panel, icon: <QrCode size={20} />, label: lang === 'vi' ? 'QR b�n an' : 'Table QR' },
           { id: 'inventory' as Panel, icon: <Boxes size={20} />, label: t[lang].inventory },
           { id: 'coupons' as Panel, icon: <Percent size={20} />, label: t[lang].coupons },
           { id: 'reports' as Panel, icon: <BarChart3 size={20} />, label: t[lang].reports },
           { id: 'accounts' as Panel, icon: <Shield size={20} />, label: t[lang].accounts },
         ].map(item => {
           const isActive = panel === item.id;
-          const pendingOrdersCount = orders.filter(o => o.status === (lang === 'vi' ? 'Ch? x? lÃ½' : 'Processing')).length;
+          const pendingOrdersCount = orders.filter(o => o.status === (lang === 'vi' ? 'Ch? x? l�' : 'Processing')).length;
           
           return (
             <button
@@ -4278,7 +4278,7 @@ const AccountsPanel: React.FC<{
         
         <div className="mt-auto pt-6 flex flex-col gap-2 border-t border-zinc-700">
           <button onClick={handleLogout} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-200'}`}>
-            <LogOut size={18} /> <span className="text-sm">{lang === 'vi' ? 'Ãang xu?t' : 'Logout'}</span>
+            <LogOut size={18} /> <span className="text-sm">{lang === 'vi' ? '�ang xu?t' : 'Logout'}</span>
           </button>
           <button onClick={()=>setLang(l=> l==='vi'?'en':'vi')} className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-200'}`}>{lang==='vi'?'EN':'VI'}</button>
           <button onClick={()=>setIsDark(d=>!d)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-200'}`}>{isDark?<Sun size={20}/>:<Moon size={20}/>} <span className="text-sm">{isDark ? 'Light' : 'Dark'}</span></button>

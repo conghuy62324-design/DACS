@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
   isPaidOrderStatus,
+  normalizeSeatValue,
   readPaymentMethodsFromStorage,
   updateInventoryForPaidOrder,
   updateTableStatusInStorage,
@@ -75,22 +76,35 @@ export default function PayPage() {
   useEffect(() => {
     if (!id) return;
 
-    const fetchData = async () => {
+    const fetchMenu = async () => {
       try {
-        const [ordersRes, menuRes] = await Promise.all([
-          fetch('/api/orders'),
-          fetch('/api/menu'),
-        ]);
-        const ordersData: Order[] = await ordersRes.json();
+        const menuRes = await fetch('/api/menu');
         const menuData: MenuItem[] = await menuRes.json();
-        setOrder((Array.isArray(ordersData) ? ordersData : []).find(item => item.id === id) || null);
         setMenu(Array.isArray(menuData) ? menuData : []);
       } catch (err) {
         console.error(err);
       }
     };
 
-    fetchData();
+    const fetchOrder = async () => {
+      try {
+        const res = await fetch(`/api/orders/${id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setOrder(data);
+        } else if (res.status === 404) {
+          setOrder(null);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchMenu();
+    fetchOrder();
+
+    const interval = setInterval(fetchOrder, 5000);
+    return () => clearInterval(interval);
   }, [id]);
 
   useEffect(() => {
@@ -98,9 +112,27 @@ export default function PayPage() {
       setPaymentMethods(readPaymentMethodsFromStorage().filter(method => method.active));
     };
 
+    const fetchMethodsFromServer = async () => {
+      try {
+        const res = await fetch('/api/payment-methods');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            const active = data.filter((m: any) => m.active);
+            setPaymentMethods(active);
+            localStorage.setItem('paymentMethods', JSON.stringify(data));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch payment methods from server', err);
+      }
+    };
+
     syncPaymentMethods();
+    fetchMethodsFromServer();
+
     window.addEventListener('storage', syncPaymentMethods);
-    const interval = window.setInterval(syncPaymentMethods, 1500);
+    const interval = window.setInterval(syncPaymentMethods, 5000);
 
     return () => {
       window.removeEventListener('storage', syncPaymentMethods);
@@ -140,6 +172,28 @@ export default function PayPage() {
       setOrder({ ...order, status: PAID_STATUS });
       setMsg('Thanh toán thành công.');
       updateInventoryForPaidOrder(order);
+      
+      // Update table status to empty on server
+      try {
+        const tRes = await fetch('/api/tables');
+        if (tRes.ok) {
+          const currentTables = await tRes.json() as any[];
+          const next = currentTables.map(tbl => {
+            if (normalizeSeatValue(tbl.table) === normalizeSeatValue(order.table) && 
+                normalizeSeatValue(tbl.floor) === normalizeSeatValue(order.floor)) {
+              return { ...tbl, status: 'empty' };
+            }
+            return tbl;
+          });
+          await fetch('/api/tables', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(next)
+          });
+        }
+      } catch (err) {
+        console.error('Failed to sync empty status', err);
+      }
       updateTableStatusInStorage(order.table, order.floor, 'empty');
     } catch (err) {
       console.error(err);
@@ -183,7 +237,7 @@ export default function PayPage() {
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-[24px] border border-zinc-800 bg-zinc-950/70 p-4">
-              <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">Khách hàng</p>
+              <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">Khách</p>
               <p className="mt-3 text-lg font-bold text-white">{order.customer || 'Khách lẻ'}</p>
             </div>
             <div className="rounded-[24px] border border-zinc-800 bg-zinc-950/70 p-4">
@@ -273,13 +327,13 @@ export default function PayPage() {
                   <div className="mt-4 grid gap-4 md:grid-cols-[180px_1fr] md:items-start">
                     <div className="flex justify-center">
                       {method.qrImage ? (
-                        <Image src={method.qrImage} alt={method.name} width={180} height={180} unoptimized className="h-[180px] w-[180px] rounded-3xl bg-white object-cover p-2" />
+                        <Image src={method.qrImage} alt={method.name} width={180} height={180} unoptimized className="h-[180px] w-[180px] max-w-[180px] rounded-3xl bg-white object-contain p-2" />
                       ) : method.qrContent ? (
                         <div className="rounded-3xl bg-white p-3">
                           <QRCodeCanvas value={method.qrContent} size={156} includeMargin />
                         </div>
                       ) : (
-                        <div className="flex h-[180px] w-[180px] items-center justify-center rounded-3xl border border-dashed border-zinc-700 text-center text-sm text-zinc-500">
+                        <div className="flex h-[180px] w-[180px] max-w-[180px] items-center justify-center rounded-3xl border border-dashed border-zinc-700 text-center text-sm text-zinc-500">
                           Chưa có QR
                         </div>
                       )}

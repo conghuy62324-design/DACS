@@ -2873,6 +2873,35 @@ export default function AdminPage() {
     };
   }, []);
 
+  // Auto-reset all table statuses to 'empty' at midnight each new day
+  useEffect(() => {
+    const lastResetKey = 'tablesLastResetDate';
+    const today = new Date().toDateString();
+    const stored = localStorage.getItem(lastResetKey);
+    if (stored === today) return;
+
+    try {
+      const raw = localStorage.getItem('tables');
+      const parsed: TableInfo[] = raw ? JSON.parse(raw) : [];
+      if (parsed.length === 0) return;
+      if (parsed.every(t => t.status === 'empty')) {
+        localStorage.setItem(lastResetKey, today);
+        return;
+      }
+      const next: TableInfo[] = parsed.map(t => ({ ...t, status: 'empty' }));
+      setTables(next);
+      localStorage.setItem('tables', JSON.stringify(next));
+      localStorage.setItem(lastResetKey, today);
+      fetch('/api/tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      }).catch(() => {});
+    } catch {
+      localStorage.setItem(lastResetKey, today);
+    }
+  }, []);
+
   const fetchPaymentMethods = useCallback(async () => {
     try {
       const res = await fetch('/api/payment-methods');
@@ -3143,6 +3172,11 @@ export default function AdminPage() {
     const todayKey = getDateInputValue(new Date());
     const [detailOrder, setDetailOrder] = useState<OrderType | null>(null);
     const [paymentOrder, setPaymentOrder] = useState<OrderType | null>(null);
+    const [detailEditItems, setDetailEditItems] = useState<Array<{ id: string; qty: number }> | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+    const [detailMsg, setDetailMsg] = useState('');
+    const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<OrderType | null>(null);
+    const [deleteSuccess, setDeleteSuccess] = useState(false);
 
     const filteredOrders = orders
       .filter(order => {
@@ -3392,119 +3426,185 @@ export default function AdminPage() {
 
         {filteredOrders.length > 0 ? (
           <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-            {filteredOrders.map((order, index) => {
-              const totalItems = order.items.reduce((sum, item) => sum + item.qty, 0);
-              const tone = getStatusTone(order.status);
+            {(() => {
+              // Group orders by table+floor
+              const groupedMap = new Map<string, {
+                table: string;
+                floor: string;
+                orders: OrderType[];
+                totalItems: number;
+                totalMoney: number;
+                customer: string;
+                handlers: string[];
+                latestCreatedAt: string;
+                earliestCreatedAt: string;
+              }>();
 
-              return (
-                <article
-                  key={order.id}
-                  className={`rounded-[20px] border p-3 transition ${tone.card} ${isDark ? 'text-white' : 'text-zinc-900'}`}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2.5">
-                    <div className="space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] ${isDark ? 'bg-black/30 text-zinc-200' : 'bg-white/80 text-zinc-700'}`}>
-                          {lang === 'vi' ? `Thứ tự #${index + 1}` : `Queue #${index + 1}`}
-                        </span>
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone.badge}`}>
-                          {order.status}
-                        </span>
-                        <span className={`text-[11px] font-semibold tracking-[0.18em] ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                          #{order.id}
-                        </span>
-                      </div>
+              filteredOrders.forEach(order => {
+                const key = `${order.table}__${order.floor}`;
+                const existing = groupedMap.get(key);
+                const qty = order.items.reduce((s, i) => s + (i.qty || 0), 0);
+                if (existing) {
+                  existing.orders.push(order);
+                  existing.totalItems += qty;
+                  existing.totalMoney += Number(order.total || 0);
+                  if (order.handler) existing.handlers.push(order.handler);
+                  const d = new Date(order.createdAt);
+                  if (d > new Date(existing.latestCreatedAt)) existing.latestCreatedAt = order.createdAt;
+                  if (d < new Date(existing.earliestCreatedAt)) existing.earliestCreatedAt = order.createdAt;
+                  if (!existing.customer && order.customer) existing.customer = order.customer;
+                } else {
+                  groupedMap.set(key, {
+                    table: order.table,
+                    floor: order.floor,
+                    orders: [order],
+                    totalItems: qty,
+                    totalMoney: Number(order.total || 0),
+                    customer: order.customer || '',
+                    handlers: order.handler ? [order.handler] : [],
+                    latestCreatedAt: order.createdAt,
+                    earliestCreatedAt: order.createdAt,
+                  });
+                }
+              });
 
-                      <div>
+              return Array.from(groupedMap.values()).map((group) => {
+                const unpaidOrders = group.orders.filter(o => !isPaidOrderStatus(o.status) && !isClosedOrderStatus(o.status));
+                const allPaid = unpaidOrders.length === 0;
+
+                // Determine display status and tone
+                let displayStatus: string;
+                let tone: ReturnType<typeof getStatusTone>;
+                if (allPaid) {
+                  displayStatus = lang === 'vi' ? 'Đã thanh toán' : 'Paid';
+                  tone = getStatusTone(displayStatus);
+                } else {
+                  const worstStatusPriority = ['Chờ xử lý', 'Processing', 'Đang nấu', 'Cooking', 'Đã nấu xong', 'Cooked', 'Đã phục vụ', 'Served'];
+                  const topStatus = [...unpaidOrders]
+                    .sort((a, b) => (worstStatusPriority.indexOf(a.status) < 0 ? 999 : worstStatusPriority.indexOf(a.status)) - (worstStatusPriority.indexOf(b.status) < 0 ? 999 : worstStatusPriority.indexOf(b.status)))
+                    .find(() => true)?.status || unpaidOrders[0].status;
+                  displayStatus = `${topStatus} (${unpaidOrders.length})`;
+                  tone = getStatusTone(topStatus);
+                }
+
+                return (
+                  <article
+                    key={`${group.table}__${group.floor}`}
+                    className={`rounded-[20px] border p-3 transition ${tone.card} ${isDark ? 'text-white' : 'text-zinc-900'}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2.5">
+                      <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] ${isDark ? 'bg-black/30 text-zinc-200' : 'bg-white/80 text-zinc-700'}`}>
+                            {lang === 'vi' ? `Bàn ${group.table || '--'}` : `Table ${group.table || '--'}`}
+                            {group.floor ? ` ${lang === 'vi' ? '• Tầng' : '• Floor'} ${group.floor}` : ''}
+                          </span>
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone.badge}`}>
+                            {displayStatus}
+                          </span>
+                          {group.orders.length > 1 && (
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isDark ? 'bg-orange-500/20 text-orange-300' : 'bg-orange-100 text-orange-700'}`}>
+                              {lang === 'vi' ? `${group.orders.length} đơn` : `${group.orders.length} orders`}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-base font-bold text-zinc-300">
-                          {lang === 'vi' ? `Bàn ${order.table || '--'} • Tầng ${order.floor || '--'}` : `Table ${order.table || '--'} • Floor ${order.floor || '--'}`}
+                          {lang === 'vi' ? `Bàn ${group.table || '--'} • Tầng ${group.floor || '--'}` : `Table ${group.table || '--'} • Floor ${group.floor || '--'}`}
                         </p>
                       </div>
                     </div>
-                  </div>
 
-                  <div className={`mt-3 rounded-[18px] border p-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
-                          {lang === 'vi' ? 'Khách hàng' : 'Customer'}
+                    <div className={`mt-3 rounded-[18px] border p-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                            {lang === 'vi' ? 'Khách hàng' : 'Customer'}
+                          </p>
+                          <p className="mt-2 text-base font-bold">{group.customer || (lang === 'vi' ? 'Khách lẻ' : 'Walk-in')}</p>
+                          <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                            {lang === 'vi' ? `Phụ trách: ${[...new Set(group.handlers)].join(', ') || 'Chưa có'}` : `Handler: ${[...new Set(group.handlers)].join(', ') || 'None'}`}
+                          </p>
+                        </div>
+                        <div className={`min-w-[130px] rounded-2xl border px-3 py-2 text-right ${isDark ? 'border-white/10 bg-black/25' : 'border-zinc-200 bg-zinc-50'}`}>
+                          <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{lang === 'vi' ? 'Bàn' : 'Table'}</p>
+                          <p className="mt-1 text-sm font-bold">{group.table || '--'}{group.floor ? ` • ${lang === 'vi' ? 'Tầng' : 'Floor'} ${group.floor}` : ''}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5 grid gap-2 grid-cols-[1.05fr_1fr]">
+                      <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
+                        <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                          {lang === 'vi' ? 'Thời gian' : 'Time'}
                         </p>
-                        <p className="mt-2 text-base font-bold">{order.customer || (lang === 'vi' ? 'Khách lẻ' : 'Walk-in')}</p>
-                        <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                          {lang === 'vi' ? `Phụ trách: ${order.handler || 'Chưa có'}` : `Handler: ${order.handler || 'None'}`}
+                        <p className="mt-1 text-sm font-bold md:text-base">
+                          {new Date(group.earliestCreatedAt).toLocaleTimeString(lang === 'vi' ? 'vi-VN' : 'en-US')}
+                        </p>
+                        <p className={`text-xs md:text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                          {new Date(group.latestCreatedAt).toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-US')}
+                          {group.orders.length > 1 ? ` (${group.orders.length} đơn)` : ''}
                         </p>
                       </div>
-                      <div className={`min-w-[130px] rounded-2xl border px-3 py-2 text-right ${isDark ? 'border-white/10 bg-black/25' : 'border-zinc-200 bg-zinc-50'}`}>
-                        <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{lang === 'vi' ? 'Bàn' : 'Table'}</p>
-                        <p className="mt-1 text-sm font-bold">{order.table || '--'}{order.floor ? ` • ${lang === 'vi' ? 'Tầng' : 'Floor'} ${order.floor}` : ''}</p>
+
+                      <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
+                        <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                          {lang === 'vi' ? 'Tổng món' : 'Total items'}
+                        </p>
+                        <p className="mt-1 text-sm font-bold md:text-base">{group.totalItems}</p>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="mt-2.5 grid gap-2 grid-cols-[1.05fr_1fr]">
-                    <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
-                      <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
-                        {lang === 'vi' ? 'Bàn / tầng' : 'Table / floor'}
-                      </p>
-                      <p className="mt-1 text-sm font-bold md:text-base">
-                        {order.table || '--'}{order.floor ? ` - ${lang === 'vi' ? `Tầng ${order.floor}` : `Floor ${order.floor}`}` : ''}
-                      </p>
+                    <div className="mt-2.5 grid gap-2 grid-cols-1">
+                      <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/25' : 'border-zinc-200 bg-white/80'}`}>
+                        <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-500">
+                          {lang === 'vi' ? 'Tổng tiền' : 'Total'}
+                        </p>
+                        <p className="mt-1 text-lg font-black text-orange-400 md:text-[1.45rem]">
+                          {formatVND(group.totalMoney).replace(/[^\d.,-]/g, '')}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
-                      <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
-                        {lang === 'vi' ? 'Thời gian' : 'Time'}
-                      </p>
-                      <p className="mt-1 text-sm font-bold md:text-base">
-                        {new Date(order.createdAt).toLocaleTimeString(lang === 'vi' ? 'vi-VN' : 'en-US')}
-                      </p>
-                      <p className={`text-xs md:text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                        {new Date(order.createdAt).toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-US')}
-                      </p>
+                    <div className="mt-2.5 grid gap-2 grid-cols-3">
+                      <button
+                        type="button"
+                        onClick={() => { setDetailOrder(group.orders[0]); setDetailEditItems(null); }}
+                        className={`inline-flex h-12 items-center justify-center rounded-2xl border px-3 text-center text-sm font-semibold transition ${
+                          isDark
+                            ? 'border-white/10 bg-black/25 text-white hover:bg-black/40'
+                            : 'border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50'
+                        }`}
+                      >
+                        {lang === 'vi' ? 'Xem' : 'View'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setDetailOrder(group.orders[0]); setDetailEditItems([...group.orders[0].items]); }}
+                        className={`inline-flex h-12 items-center justify-center rounded-2xl border border-blue-500/30 bg-blue-500/10 px-3 text-center text-sm font-semibold text-blue-400 transition hover:bg-blue-500/20`}
+                      >
+                        {lang === 'vi' ? 'Sửa' : 'Edit'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmOrder(group.orders[0])}
+                        className="inline-flex h-12 items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 px-3 text-center text-sm font-semibold text-red-400 transition hover:bg-red-500/20"
+                      >
+                        {lang === 'vi' ? 'Xóa' : 'Del'}
+                      </button>
                     </div>
-                  </div>
-
-                  <div className="mt-2.5 grid gap-2 grid-cols-[0.8fr_1.05fr]">
-                    <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
-                      <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
-                        {lang === 'vi' ? 'Tổng món' : 'Total items'}
-                      </p>
-                      <p className="mt-1 text-sm font-bold md:text-base">{totalItems}</p>
+                    <div className="mt-2 grid gap-2 grid-cols-1">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentOrder(group.orders[0])}
+                        className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-500 px-3 text-center text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
+                      >
+                        {lang === 'vi' ? 'Thanh toán' : 'Pay'}
+                      </button>
                     </div>
-
-                    <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/25' : 'border-zinc-200 bg-white/80'}`}>
-                      <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-500">
-                        {lang === 'vi' ? 'Tổng tiền' : 'Total'}
-                      </p>
-                      <p className="mt-1 text-lg font-black text-orange-400 md:text-[1.45rem]">
-                        {formatVND(order.total || 0).replace(/[^\d.,-]/g, '')}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-2.5 grid gap-2 grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => setDetailOrder(order)}
-                      className={`inline-flex h-12 items-center justify-center rounded-2xl border px-3 text-center text-sm font-semibold transition ${
-                        isDark
-                          ? 'border-white/10 bg-black/25 text-white hover:bg-black/40'
-                          : 'border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50'
-                      }`}
-                    >
-                      {lang === 'vi' ? 'Xem' : 'View'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentOrder(order)}
-                      className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-500 px-3 text-center text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
-                    >
-                      {lang === 'vi' ? 'Thanh toán' : 'Pay'}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
+                  </article>
+                );
+              });
+            })()}
           </div>
         ) : (
           <div className={`rounded-[28px] border border-dashed p-12 text-center ${isDark ? 'border-zinc-800 bg-zinc-900/40 text-zinc-400' : 'border-zinc-300 bg-zinc-50 text-zinc-500'}`}>
@@ -3514,7 +3614,7 @@ export default function AdminPage() {
 
         {detailOrder && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
-            <div className={`w-full max-w-3xl rounded-[28px] border p-5 shadow-2xl ${isDark ? 'border-zinc-700 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-900'}`}>
+            <div className={`w-full max-w-3xl rounded-[28px] border p-5 shadow-2xl max-h-[90vh] overflow-y-auto ${isDark ? 'border-zinc-700 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-900'}`}>
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className={`text-xs font-semibold uppercase tracking-[0.24em] ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
@@ -3529,7 +3629,7 @@ export default function AdminPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setDetailOrder(null)}
+                  onClick={() => { setDetailOrder(null); setDetailEditItems(null); setShowDeleteConfirm(null); setDetailMsg(''); }}
                   className={`inline-flex h-11 min-w-11 items-center justify-center rounded-2xl border px-3 text-sm font-semibold ${isDark ? 'border-zinc-700 bg-zinc-900 text-zinc-200' : 'border-zinc-300 bg-zinc-100 text-zinc-700'}`}
                 >
                   {lang === 'vi' ? 'Đóng' : 'Close'}
@@ -3555,44 +3655,261 @@ export default function AdminPage() {
                   <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'Thời gian' : 'Time'}</p>
                   <p className="mt-2 text-sm font-bold">{new Date(detailOrder.createdAt).toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')}</p>
                 </div>
-                <div className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-zinc-50'}`}>
+                <div className={`rounded-2xl border px-4 py-3 ${isDark ? 'border-orange-500/15 bg-orange-500/5' : 'border-orange-100 bg-orange-50'}`}>
                   <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">{lang === 'vi' ? 'Tổng tiền' : 'Total'}</p>
                   <p className="mt-2 text-xl font-black text-orange-400">{formatVND(detailOrder.total || 0)}</p>
                 </div>
               </div>
 
+              {/* Items list — editable */}
               <div className={`mt-4 rounded-[24px] border p-4 ${isDark ? 'border-zinc-800 bg-zinc-900/60' : 'border-zinc-200 bg-zinc-50'}`}>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <p className="text-base font-semibold">{lang === 'vi' ? 'Danh sách món' : 'Items'}</p>
-                  <span className={`text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                    {detailOrder.items.reduce((sum, item) => sum + item.qty, 0)} {lang === 'vi' ? 'món' : 'items'}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setDetailEditItems(detailEditItems ? null : [...detailOrder.items])}
+                    className={`text-xs px-3 py-1 rounded-xl font-semibold transition ${detailEditItems ? 'bg-orange-500 text-white' : isDark ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300'}`}
+                  >
+                    {detailEditItems ? (lang === 'vi' ? 'Hủy sửa' : 'Cancel') : (lang === 'vi' ? 'Sửa món' : 'Edit items')}
+                  </button>
                 </div>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {detailOrder.items.map(item => {
-                    const menu = menuItems.find(menuEntry => menuEntry.id === item.id);
+
+                <div className="space-y-2">
+                  {(detailEditItems || detailOrder.items).map((item) => {
+                    const menu = menuItems.find(m => m.id === item.id);
                     const name = menu ? (lang === 'vi' ? menu.nameVi : menu.nameEn) : item.id;
+                    const unitPrice = menu?.price || 0;
                     return (
                       <div
                         key={`${detailOrder.id}-${item.id}`}
-                        className={`rounded-2xl px-4 py-3 text-sm font-medium ${isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-zinc-700'}`}
+                        className={`flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium ${isDark ? 'bg-zinc-950 text-zinc-100' : 'bg-white text-zinc-700'}`}
                       >
-                        {name} x{item.qty}
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold">{name}</span>
+                          {detailEditItems && (
+                            <span className="text-xs text-zinc-400">{formatVND(unitPrice)}/món</span>
+                          )}
+                        </div>
+                        {detailEditItems ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetailEditItems(prev => {
+                                  if (!prev) return prev;
+                                  const updated = prev.map(it =>
+                                    it.id === item.id ? { ...it, qty: Math.max(0, it.qty - 1) } : it
+                                  ).filter(it => it.qty > 0);
+                                  return updated;
+                                });
+                              }}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-700 text-white font-bold hover:bg-zinc-600"
+                            >−</button>
+                            <span className="w-8 text-center font-bold">{item.qty}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetailEditItems(prev => {
+                                  if (!prev) return prev;
+                                  return prev.map(it =>
+                                    it.id === item.id ? { ...it, qty: it.qty + 1 } : it
+                                  );
+                                });
+                              }}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-orange-500 text-white font-bold hover:bg-orange-400"
+                            >+</button>
+                          </div>
+                        ) : (
+                          <span className="font-bold text-orange-400">x{item.qty}</span>
+                        )}
                       </div>
                     );
                   })}
                 </div>
+
+                {detailEditItems && (
+                  <div className="mt-3 border-t border-zinc-700 pt-3 flex items-center justify-between gap-3">
+                    <span className="text-sm text-zinc-400">
+                      {lang === 'vi' ? 'Tổng tạm:' : 'Temp total:'}{' '}
+                      <span className="font-black text-orange-400">
+                        {formatVND(detailEditItems.reduce((s, i) => s + (menuItems.find(m => m.id === i.id)?.price || 0) * i.qty, 0))}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!detailEditItems || detailEditItems.length === 0) return;
+                        const newTotal = detailEditItems.reduce((s, i) => s + (menuItems.find(m => m.id === i.id)?.price || 0) * i.qty, 0);
+                        try {
+                          const res = await fetch(`/api/orders/${detailOrder.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ items: detailEditItems, total: newTotal }),
+                          });
+                          if (!res.ok) throw new Error('Failed');
+                          const data = await res.json();
+                          setOrders(prev => prev.map(o =>
+                            o.id === detailOrder.id ? { ...o, items: detailEditItems, total: newTotal } : o
+                          ));
+                          setDetailOrder({ ...detailOrder, items: detailEditItems, total: newTotal });
+                          setDetailEditItems(null);
+                          setDetailMsg(lang === 'vi' ? 'Đã lưu thay đổi.' : 'Changes saved.');
+                          setTimeout(() => setDetailMsg(''), 2000);
+                        } catch {
+                          setDetailMsg(lang === 'vi' ? 'Không thể lưu thay đổi.' : 'Failed to save changes.');
+                        }
+                      }}
+                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-blue-600 px-5 text-sm font-bold text-white hover:bg-blue-500"
+                    >
+                      {lang === 'vi' ? 'Lưu thay đổi' : 'Save changes'}
+                    </button>
+                  </div>
+                )}
+
+                {detailMsg && (
+                  <div className={`mt-2 rounded-xl px-3 py-2 text-xs font-medium ${detailMsg.includes('Không') || detailMsg.includes('Failed') ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+                    {detailMsg}
+                  </div>
+                )}
               </div>
 
+              {/* Actions */}
               <div className="mt-4 flex flex-wrap justify-end gap-2">
+                {showDeleteConfirm === detailOrder.id ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => { setShowDeleteConfirm(null); setDetailMsg(''); }}
+                      className={`inline-flex h-11 items-center justify-center rounded-2xl border px-4 text-sm font-semibold ${isDark ? 'border-zinc-700 bg-zinc-900 text-zinc-200' : 'border-zinc-300 bg-zinc-100 text-zinc-700'}`}
+                    >
+                      {lang === 'vi' ? 'Hủy' : 'Cancel'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await fetch(`/api/orders/${detailOrder.id}`, { method: 'DELETE' });
+                          setOrders(prev => prev.filter(o => o.id !== detailOrder.id));
+                          // Reset table to empty if no other open orders for that table
+                          if (detailOrder.table) {
+                            const remainingOrders = orders.filter(o =>
+                              o.id !== detailOrder.id &&
+                              normalizeSeatValue(o.table) === normalizeSeatValue(detailOrder.table) &&
+                              normalizeSeatValue(o.floor) === normalizeSeatValue(detailOrder.floor || '')
+                            );
+                            const nextTableStatus = remainingOrders.some(o => !isClosedOrderStatus(o.status))
+                              ? 'ordering'
+                              : 'empty';
+                            updateTableStatusByOrder(detailOrder.table, detailOrder.floor || '', nextTableStatus);
+                          }
+                          setDetailOrder(null);
+                          setShowDeleteConfirm(null);
+                          setDetailMsg(lang === 'vi' ? 'Đã xóa đơn hàng.' : 'Order deleted.');
+                        } catch {
+                          setDetailMsg(lang === 'vi' ? 'Không thể xóa đơn.' : 'Failed to delete order.');
+                        }
+                      }}
+                      className="inline-flex h-11 items-center justify-center rounded-2xl bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-500"
+                    >
+                      {lang === 'vi' ? 'Xác nhận xóa' : 'Confirm delete'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(detailOrder.id)}
+                      className="inline-flex h-11 items-center justify-center rounded-2xl border border-red-500/40 bg-red-500/10 px-4 text-sm font-semibold text-red-400 hover:bg-red-500/20"
+                    >
+                      {lang === 'vi' ? 'Xóa đơn' : 'Delete order'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentOrder(detailOrder)}
+                      className="inline-flex h-11 items-center justify-center rounded-2xl bg-emerald-500 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
+                    >
+                      {lang === 'vi' ? 'Thanh toán' : 'Pay'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete confirmation modal */}
+        {deleteConfirmOrder && (
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setDeleteConfirmOrder(null); }}
+          >
+            <div className={`w-full max-w-sm rounded-[2rem] border-2 border-red-400 bg-red-950/95 p-8 shadow-2xl flex flex-col items-center gap-6 text-center ${isDark ? 'text-red-100' : 'text-red-900'}`}>
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-500 text-white">
+                <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14H6L5 6"/>
+                  <path d="M10 11v6M14 11v6"/>
+                  <path d="M9 6V4h6v2"/>
+                </svg>
+              </div>
+              <p className="text-lg font-bold leading-relaxed">
+                {lang === 'vi' ? 'Bạn chắc chắn muốn xóa đơn hàng này?' : 'Are you sure you want to delete this order?'}
+              </p>
+              <p className="text-sm text-red-300 opacity-70">
+                {deleteConfirmOrder.table ? `Bàn ${deleteConfirmOrder.table}` : ''}{deleteConfirmOrder.customer ? ` • ${deleteConfirmOrder.customer}` : ''}
+              </p>
+              <div className="flex w-full gap-3">
                 <button
                   type="button"
-                  onClick={() => setPaymentOrder(detailOrder)}
-                  className="inline-flex h-11 items-center justify-center rounded-2xl bg-emerald-500 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
+                  onClick={() => setDeleteConfirmOrder(null)}
+                  className="flex-1 h-12 rounded-2xl border border-red-500/40 bg-transparent text-red-200 font-bold text-sm transition hover:bg-red-500/20"
                 >
-                  {lang === 'vi' ? 'Thanh toán' : 'Pay'}
+                  {lang === 'vi' ? 'Hủy' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await fetch(`/api/orders/${deleteConfirmOrder.id}`, { method: 'DELETE' });
+                      setOrders(prev => prev.filter(o => o.id !== deleteConfirmOrder.id));
+                      if (deleteConfirmOrder.table) {
+                        const remaining = orders.filter(o =>
+                          o.id !== deleteConfirmOrder.id &&
+                          normalizeSeatValue(o.table) === normalizeSeatValue(deleteConfirmOrder.table) &&
+                          normalizeSeatValue(o.floor) === normalizeSeatValue(deleteConfirmOrder.floor || '')
+                        );
+                        const nextStatus = remaining.some(o => !isClosedOrderStatus(o.status)) ? 'ordering' : 'empty';
+                        updateTableStatusByOrder(deleteConfirmOrder.table, deleteConfirmOrder.floor || '', nextStatus);
+                      }
+                      setDeleteConfirmOrder(null);
+                      setDeleteSuccess(true);
+                      setTimeout(() => setDeleteSuccess(false), 1400);
+                    } catch {}
+                  }}
+                  className="flex-1 h-12 rounded-2xl bg-red-500 text-white font-bold text-sm transition hover:bg-red-400"
+                >
+                  {lang === 'vi' ? 'Xác nhận' : 'Confirm'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete success toast */}
+        {deleteSuccess && (
+          <div
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
+            onClick={() => setDeleteSuccess(false)}
+          >
+            <div className="rounded-[2rem] border-2 border-emerald-400 bg-emerald-950/95 p-10 flex flex-col items-center justify-center gap-5 shadow-2xl">
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500 text-white">
+                <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              <p className="text-emerald-100 text-lg font-bold">
+                {lang === 'vi' ? 'Đã xóa đơn hàng.' : 'Order deleted.'}
+              </p>
             </div>
           </div>
         )}
@@ -3841,46 +4158,140 @@ export default function AdminPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredOrders.map(o => {
-              const itemText = o.items.map(i => {
-                const m = menuItems.find(m => m.id === i.id);
-                const name = m ? (lang === 'vi' ? m.nameVi : m.nameEn) : i.id;
-                return `${name} x${i.qty}`;
-              }).join(', ');
-              return (
-                <tr key={o.id} className={`border-b ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'}`}>
-                  <td className="p-2">{o.table}</td>
-                  <td className="p-2">{o.customer}</td>
-                  <td className="p-2" title={itemText}>{itemText}</td>
-                  <td className="p-2">{formatVND(o.total || 0)}</td>
-                  <td className="p-2">
-                    <select value={o.status} onChange={e=>updateStatus(o.id,e.target.value)} className={`${isDark ? 'bg-zinc-700 text-white border border-zinc-600' : 'bg-white text-zinc-900 border border-zinc-300'} p-1 rounded` }>
-                      {statuses.map(s=> <option key={s}>{s}</option>)}
-                    </select>
-                  </td>
-                  <td className="p-2">
-                    <select value={o.handler} onChange={e=>updateHandler(o.id, e.target.value)} className={`${isDark ? 'bg-zinc-700 text-white border border-zinc-600' : 'bg-white text-zinc-900 border border-zinc-300'} p-1 rounded` }>
-                      <option value="">--</option>
-                      {accounts.map(acc => (
-                        <option key={acc.id} value={acc.name}>{acc.name}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="p-2">{new Date(o.createdAt).toLocaleString()}</td>
-                  <td className="p-2">
-                    <a href={payUrl(o.id)} target="_blank" rel="noreferrer" className="text-xs underline">
-                      {lang === 'vi' ? 'Thanh toán' : 'Pay'}
-                    </a>
-                  </td>
-                  <td className="p-2">
-                    <button
-                      onClick={() => printOrder(o)}
-                      className="text-xs underline"
-                    >{lang === 'vi' ? 'In' : 'Print'}</button>
-                  </td>
-                </tr>
-              );
-            })}
+            {(() => {
+              // Group orders by table+floor so multiple orders from the same table are merged into one row
+              const groupedMap = new Map<string, {
+                table: string;
+                floor: string;
+                orderIds: string[];
+                customer: string;
+                itemNames: string;
+                total: number;
+                unpaidCount: number;
+                statuses: string[];
+                handlers: string[];
+                latestCreatedAt: string;
+              }>();
+
+              filteredOrders.forEach(o => {
+                const key = `${o.table}__${o.floor}`;
+                const existing = groupedMap.get(key);
+                const itemText = o.items.map(i => {
+                  const m = menuItems.find(m => m.id === i.id);
+                  return `${m ? (lang === 'vi' ? m.nameVi : m.nameEn) : i.id} x${i.qty}`;
+                }).join(', ');
+
+                if (existing) {
+                  existing.orderIds.push(o.id);
+                  existing.itemNames += (existing.itemNames ? ' | ' : '') + itemText;
+                  existing.total += Number(o.total || 0);
+                  existing.statuses.push(o.status);
+                  if (o.handler) existing.handlers.push(o.handler);
+                  if (new Date(o.createdAt) > new Date(existing.latestCreatedAt)) {
+                    existing.latestCreatedAt = o.createdAt;
+                    existing.customer = o.customer;
+                  }
+                  if (!isPaidOrderStatus(o.status) && !isClosedOrderStatus(o.status)) {
+                    existing.unpaidCount++;
+                  }
+                } else {
+                  groupedMap.set(key, {
+                    table: o.table,
+                    floor: o.floor,
+                    orderIds: [o.id],
+                    customer: o.customer,
+                    itemNames: itemText,
+                    total: Number(o.total || 0),
+                    unpaidCount: (!isPaidOrderStatus(o.status) && !isClosedOrderStatus(o.status)) ? 1 : 0,
+                    statuses: [o.status],
+                    handlers: o.handler ? [o.handler] : [],
+                    latestCreatedAt: o.createdAt,
+                  });
+                }
+              });
+
+              return Array.from(groupedMap.values()).map(group => {
+                // Show "Đã thanh toán" only if ALL orders in the group are paid
+                const allPaid = group.unpaidCount === 0 && group.statuses.length > 0;
+                const displayStatus = allPaid
+                  ? (lang === 'vi' ? 'Đã thanh toán' : 'Paid')
+                  : (lang === 'vi' ? `Chờ TT (${group.unpaidCount})` : `Pending (${group.unpaidCount})`);
+
+                // Payment link: use first unpaid order ID, or last order ID if all paid
+                const payOrderId = group.orderIds[0];
+
+                return (
+                  <tr key={group.table + group.floor} className={`border-b ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'}`}>
+                    <td className="p-2 font-bold">
+                      {group.table}
+                      {group.floor ? <span className="text-zinc-400 text-xs block">{lang==='vi'?'Tầng':'Floor'} {group.floor}</span> : null}
+                    </td>
+                    <td className="p-2">{group.customer}</td>
+                    <td className="p-2 text-xs max-w-xs" title={group.itemNames}>
+                      <div className="max-w-xs truncate">{group.itemNames}</div>
+                      {group.orderIds.length > 1 && (
+                        <div className="text-[10px] text-orange-400 mt-0.5">
+                          {lang==='vi' ? `${group.orderIds.length} đơn gộp` : `${group.orderIds.length} orders merged`}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-2 font-semibold text-orange-400">{formatVND(group.total)}</td>
+                    <td className="p-2">
+                      {allPaid ? (
+                        <span className="text-xs px-2 py-1 bg-green-600 text-white rounded">{displayStatus}</span>
+                      ) : (
+                        <select
+                          value={group.statuses[0]}
+                          onChange={async e => {
+                            const newStatus = e.target.value;
+                            for (const id of group.orderIds) {
+                              await updateStatus(id, newStatus);
+                            }
+                          }}
+                          className={`${isDark ? 'bg-zinc-700 text-white border border-zinc-600' : 'bg-white text-zinc-900 border border-zinc-300'} p-1 rounded text-xs`}
+                        >
+                          {statuses.map(s => <option key={s}>{s}</option>)}
+                        </select>
+                      )}
+                    </td>
+                    <td className="p-2">
+                      <select
+                        value={group.handlers[0] || ''}
+                        onChange={e => {
+                          for (const id of group.orderIds) {
+                            updateHandler(id, e.target.value);
+                          }
+                        }}
+                        className={`${isDark ? 'bg-zinc-700 text-white border border-zinc-600' : 'bg-white text-zinc-900 border border-zinc-300'} p-1 rounded text-xs`}
+                      >
+                        <option value="">--</option>
+                        {accounts.map(acc => (
+                          <option key={acc.id} value={acc.name}>{acc.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="p-2 text-xs">{new Date(group.latestCreatedAt).toLocaleString()}</td>
+                    <td className="p-2">
+                      <a href={payUrl(payOrderId)} target="_blank" rel="noreferrer" className="text-xs bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600">
+                        {lang === 'vi' ? 'Thanh toán' : 'Pay'}
+                      </a>
+                    </td>
+                    <td className="p-2">
+                      <button
+                        onClick={() => {
+                          // Print all orders in group
+                          group.orderIds.forEach(id => {
+                            const o = orders.find(x => x.id === id);
+                            if (o) printOrder(o);
+                          });
+                        }}
+                        className="text-xs underline"
+                      >{lang === 'vi' ? 'In' : 'Print'}</button>
+                    </td>
+                  </tr>
+                );
+              });
+            })()}
             {filteredOrders.length === 0 && (
               <tr>
                 <td colSpan={9} className="p-6 text-center opacity-70">

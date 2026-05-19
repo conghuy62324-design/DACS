@@ -73,7 +73,7 @@ export const readDeductedOrderIds = () => {
   }
 };
 
-export const updateInventoryForPaidOrder = (order: PaymentOrder) => {
+export const updateInventoryForPaidOrder = async (order: PaymentOrder) => {
   try {
     const deductedOrderIds = readDeductedOrderIds();
     if (deductedOrderIds.has(order.id)) return;
@@ -90,6 +90,13 @@ export const updateInventoryForPaidOrder = (order: PaymentOrder) => {
     localStorage.setItem("inventoryStock", JSON.stringify(next));
     deductedOrderIds.add(order.id);
     localStorage.setItem("deductedOrderIds", JSON.stringify([...deductedOrderIds]));
+
+    // Sync to server so inventory persists after logout/restart
+    await fetch('/api/inventory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(next),
+    }).catch(() => {}); // Ignore network errors - data is already saved locally
   } catch {
     // ignore client storage issues
   }

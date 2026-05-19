@@ -136,7 +136,7 @@ export default function StaffOrderPage() {
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToastType(type);
     setToastMsg(message);
-    window.setTimeout(() => setToastMsg(''), 2200);
+    window.setTimeout(() => setToastMsg(''), 1200);
   }, []);
 
   const syncTableStatus = useCallback((status: string) => {
@@ -694,30 +694,34 @@ export default function StaffOrderPage() {
       style={{ paddingBottom: totalItems > 0 ? '4rem' : undefined }}
     >
       {toastMsg && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className={`rounded-[2rem] border-2 p-10 flex flex-col items-center justify-center gap-6 shadow-2xl animate-success-pop ${
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 cursor-pointer"
+          onClick={() => setToastMsg('')}
+        >
+          <div className={`rounded-3xl border-2 p-6 flex flex-col items-center justify-center gap-4 shadow-2xl animate-success-pop ${
             toastType === 'success'
               ? 'border-emerald-400 bg-emerald-950/95 text-emerald-100'
               : 'border-red-400 bg-red-950/95 text-red-100'
           }`}>
-            <div className={`relative flex h-24 w-24 items-center justify-center rounded-full animate-success-pulse ${
+            <div className={`relative flex h-16 w-16 items-center justify-center rounded-full animate-success-pulse ${
               toastType === 'success'
                 ? 'bg-emerald-500 text-white'
                 : 'bg-red-500 text-white'
             }`}>
               {toastType === 'success' ? (
-                <svg className="w-12 h-12 animate-[checkDraw_0.6s_ease-out_forwards]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-9 h-9 animate-[checkDraw_0.5s_ease-out_forwards]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               ) : (
-                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-9 h-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
                   <line x1="15" y1="9" x2="9" y2="15" />
                   <line x1="9" y1="9" x2="15" y2="15" />
                 </svg>
               )}
             </div>
-            <p className="text-2xl font-black text-center">{toastMsg}</p>
+            <p className="text-xl font-black text-center">{toastMsg}</p>
+            <p className="text-xs text-center opacity-50">{lang === 'vi' ? 'Chạm để đóng' : 'Tap to dismiss'}</p>
           </div>
         </div>
       )}

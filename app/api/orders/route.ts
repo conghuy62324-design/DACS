@@ -40,6 +40,9 @@ async function ensureOrdersSchema() {
   if (!columns.has('customer')) {
     await db.query("ALTER TABLE orders ADD COLUMN customer VARCHAR(255) NOT NULL DEFAULT ''");
   }
+  if (!columns.has('phone')) {
+    await db.query("ALTER TABLE orders ADD COLUMN phone VARCHAR(50) NOT NULL DEFAULT ''");
+  }
   if (!columns.has('total')) {
     await db.query('ALTER TABLE orders ADD COLUMN total DECIMAL(12,2) NOT NULL DEFAULT 0');
   }
@@ -107,6 +110,7 @@ async function getOrders() {
       ${tableNameColumn} as tableName,
       ${floorColumn} as floor,
       ${customerColumn} as customer,
+      COALESCE(phone, '') as phone,
       ${totalColumn} as total,
       ${statusColumn} as status,
       ${handlerColumn} as handler,
@@ -131,6 +135,7 @@ async function getOrders() {
     tableName: string;
     floor: string;
     customer: string;
+    phone: string;
     total: number;
     status: string;
     handler: string;
@@ -140,6 +145,7 @@ async function getOrders() {
     table: order.tableName,
     floor: order.floor,
     customer: order.customer,
+    phone: order.phone || '',
     items: itemsByOrder.get(order.id) || [],
     total: Number(order.total || 0),
     status: order.status,
@@ -174,18 +180,29 @@ export async function POST(request: Request) {
     const data = await request.json();
     const { db, schema } = await ensureOrdersSchema();
     const id = `o${Date.now()}`;
-    const items: OrderItem[] = Object.entries(data.cart || {}).map(([itemId, qty]) => ({ id: itemId, qty: Number(qty) || 0 }));
+    // Accept both formats: map { itemId: qty } or array [{ id, qty }]
+    let items: OrderItem[];
+    if (Array.isArray(data.items)) {
+      items = data.items.map((it: { id: string; qty: number }) => ({ id: String(it.id || ''), qty: Number(it.qty || 0) }));
+    } else if (Array.isArray(data.cart)) {
+      items = data.cart.map((it: { id: string; qty: number }) => ({ id: String(it.id || ''), qty: Number(it.qty || 0) }));
+    } else {
+      items = Object.entries(data.items || data.cart || {}).map(([itemId, qty]) => ({ id: String(itemId), qty: Number(qty || 0) }));
+    }
     const customerValue = String(data.customer || data.customerName || '').trim();
+    const phoneValue = String(data.phone || data.customerPhone || '').replace(/\s+/g, '').trim();
     const totalValue = Number(data.total ?? data.totalPrice) || 0;
     const createdAtValue = new Date();
-    const orderColumns = ['id', 'table_name', 'floor', 'customer', 'total', 'status', 'handler', 'created_at'];
+    const statusValue = String(data.status || 'Chờ xử lý').trim() || 'Chờ xử lý';
+    const orderColumns = ['id', 'table_name', 'floor', 'customer', 'phone', 'total', 'status', 'handler', 'created_at'];
     const orderValues: Array<string | number | Date> = [
       id,
       String(data.table || ''),
       String(data.floor || ''),
       customerValue,
+      phoneValue,
       totalValue,
-      'Cho xu ly',
+      statusValue,
       String(data.handler || ''),
       createdAtValue,
     ];
@@ -277,5 +294,45 @@ export async function PATCH(request: Request) {
   } catch (error) {
     console.error('update order error', error);
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Unable to update order' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ ok: false, error: 'Order id is required' }, { status: 400 });
+    }
+
+    const { db } = await ensureOrdersSchema();
+
+    // Get order info before deleting (to know table/floor for table status reset)
+    const [orderRows] = await db.query(
+      `SELECT table_name as tableName, floor FROM orders WHERE id = ?`,
+      [id]
+    ) as [any[], unknown];
+
+    const orderInfo = (orderRows as any[])[0] || null;
+
+    // Delete order items first
+    await db.execute('DELETE FROM order_items WHERE order_id = ?', [id]);
+    // Delete order
+    await db.execute('DELETE FROM orders WHERE id = ?', [id]);
+
+    // Emit updated orders list
+    const orders = await getOrders();
+    emitOrders(orders);
+
+    return NextResponse.json({
+      ok: true,
+      deletedId: id,
+      table: orderInfo?.tableName || null,
+      floor: orderInfo?.floor || null,
+    });
+  } catch (error) {
+    console.error('delete order error', error);
+    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Unable to delete order' }, { status: 500 });
   }
 }

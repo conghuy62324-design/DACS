@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { adminSessionCookieName, signAdminSession } from '@/lib/auth';
 import {
   findAdminAccountByEmail,
-  findAdminAccountByUsername,
+  findAdminAccountByPhone,
   saveAdminOtp,
   verifyAdminPassword,
 } from '@/lib/admin-store';
@@ -17,24 +17,23 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
 
-    const loginEmail = String(data.email || '').trim().toLowerCase();
     const loginPassword = String(data.password || '');
     const expectedRole = data.role === 'staff' ? 'staff' : 'admin';
 
-    // Staff logic (Legacy)
+    // ── Staff login: số điện thoại + mật khẩu → đăng nhập trực tiếp (không OTP) ──
     if (expectedRole === 'staff') {
-      const legacyUsername = String(data.username || '').trim();
-      if (!legacyUsername || !loginPassword) {
+      const loginPhone = String(data.phone || '').trim();
+      if (!loginPhone || !loginPassword) {
         return NextResponse.json(
-          { ok: false, error: 'Username and password are required' },
+          { ok: false, error: 'Vui lòng nhập số điện thoại và mật khẩu' },
           { status: 400 }
         );
       }
 
-      const account = await findAdminAccountByUsername(legacyUsername);
+      const account = await findAdminAccountByPhone(loginPhone);
       if (!account || account.role !== 'staff') {
         return NextResponse.json(
-          { ok: false, error: 'Staff account not found' },
+          { ok: false, error: 'Không tìm thấy tài khoản nhân viên với số điện thoại này' },
           { status: 401 }
         );
       }
@@ -42,7 +41,7 @@ export async function POST(request: Request) {
       const valid = await verifyAdminPassword(account, loginPassword);
       if (!valid) {
         return NextResponse.json(
-          { ok: false, error: 'Invalid password' },
+          { ok: false, error: 'Mật khẩu không chính xác' },
           { status: 401 }
         );
       }
@@ -64,7 +63,8 @@ export async function POST(request: Request) {
       return response;
     }
 
-    // ── Admin login: email + password → OTP ──
+    // ── Admin login: email + mật khẩu → gửi OTP về email admin ──
+    const loginEmail = String(data.email || '').trim().toLowerCase();
     if (!loginEmail || !loginPassword) {
       return NextResponse.json(
         { ok: false, error: 'Vui lòng nhập đầy đủ email và mật khẩu' },
@@ -73,7 +73,6 @@ export async function POST(request: Request) {
     }
 
     const account = await findAdminAccountByEmail(loginEmail);
-
     if (!account) {
       return NextResponse.json(
         { ok: false, error: 'Không tìm thấy tài khoản admin với email này' },
@@ -89,7 +88,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate OTP and send email WITHOUT awaiting so it transitions instantly
+    // Gửi OTP về email của admin trong database
     const code = generateOtp();
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
@@ -114,4 +113,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

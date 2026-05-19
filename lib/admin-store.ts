@@ -181,6 +181,32 @@ export async function findAdminAccountByEmail(email: string) {
   ) || null;
 }
 
+export async function findAdminAccountByPhone(phone: string) {
+  const normalizedPhone = phone.trim();
+  if (!normalizedPhone) return null;
+
+  const db = await getAdminDb();
+  if (db) {
+    const [rows] = await db.execute(
+      `SELECT id, username, password_hash as passwordHash, name, role, email, phone,
+              two_factor_enabled as twoFactorEnabled, created_at as createdAt
+       FROM accounts WHERE phone = ? LIMIT 1`,
+      [normalizedPhone]
+    );
+
+    const account = (rows as AdminAccountRecord[])[0];
+    return account
+      ? {
+          ...account,
+          twoFactorEnabled: Boolean(account.twoFactorEnabled),
+          createdAt: String(account.createdAt),
+        }
+      : null;
+  }
+
+  return readJsonAccounts().find(account => account.phone === normalizedPhone) || null;
+}
+
 export async function findAdminAccountById(id: string) {
   const normalizedId = id.trim();
   const db = await getAdminDb();

@@ -53,6 +53,7 @@ interface OrderType {
   table: string;
   floor: string;
   customer: string;
+  phone?: string;
   items: OrderItem[];
   total: number;
   status: string;
@@ -95,12 +96,15 @@ export default function RestaurantMenu() {
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
   const [isLoading, setIsLoading] = useState(false);
+  // Guard to prevent sync bridge from double-counting during order placement
+  const isPlacingOrder = useRef(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState('');
   const [placedOrderIds, setPlacedOrderIds] = useState<string[]>([]);
   // Local cart copy of items that were already placed (stays visible in sidebar)
   const [placedOrderCart, setPlacedOrderCart] = useState<Record<string, number>>({});
+  const [tableLockedMsg, setTableLockedMsg] = useState('');
 
   const [tableInfo, setTableInfo] = useState<TableInfo | null>(null);
   const [customerName, setCustomerName] = useState('');
@@ -111,7 +115,7 @@ export default function RestaurantMenu() {
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToastType(type);
     setToastMsg(message);
-    window.setTimeout(() => setToastMsg(''), 2200);
+    window.setTimeout(() => setToastMsg(''), 1200);
   }, []);
 
   useEffect(() => {
@@ -132,29 +136,9 @@ export default function RestaurantMenu() {
         // to ensure the user can verify their info before entering the menu.
       }
 
-      const syncOccupied = async () => {
-        try {
-          const res = await fetch('/api/tables');
-          if (res.ok) {
-            const currentTables = await res.json() as any[];
-            const next = currentTables.map(tbl => {
-              if (normalizeSeatValue(tbl.table) === normalizeSeatValue(info.table) && 
-                  normalizeSeatValue(tbl.floor) === normalizeSeatValue(info.floor)) {
-                return { ...tbl, status: tbl.status === 'empty' ? 'occupied' : tbl.status };
-              }
-              return tbl;
-            });
-            await fetch('/api/tables', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(next)
-            });
-          }
-        } catch (err) {
-          console.error('Failed to sync occupied status', err);
-        }
-      };
-      syncOccupied();
+      // NOTE: do NOT change table status to "occupied" here.
+      // Status should only change to "ordering" AFTER an actual order is placed (in placeOrder).
+      // This prevents blocking a customer who scanned QR but hasn't entered their info yet.
     }
   }, []);
 
@@ -163,9 +147,12 @@ export default function RestaurantMenu() {
     if (saved) setCart(JSON.parse(saved));
   }, []);
 
+  // Restore placedOrderIds from localStorage on mount (before sync bridge runs)
   useEffect(() => {
+    if (!tableInfo) return;
+    const key = `placedOrderIds_${tableInfo.table}_${tableInfo.floor}`;
     try {
-      const raw = sessionStorage.getItem('placedOrderIds');
+      const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
@@ -175,7 +162,29 @@ export default function RestaurantMenu() {
     } catch {
       // ignore
     }
-  }, []);
+  }, []); // only on mount
+
+  // Persist placedOrderCart to localStorage
+  useEffect(() => {
+    if (!tableInfo) return;
+    const key = `placedOrderCart_${tableInfo.table}_${tableInfo.floor}`;
+    try {
+      localStorage.setItem(key, JSON.stringify(placedOrderCart));
+    } catch {
+      // ignore
+    }
+  }, [placedOrderCart, tableInfo]);
+
+  // Persist placedOrderIds to localStorage per table
+  useEffect(() => {
+    if (!tableInfo) return;
+    const key = `placedOrderIds_${tableInfo.table}_${tableInfo.floor}`;
+    try {
+      localStorage.setItem(key, JSON.stringify(placedOrderIds));
+    } catch {
+      // ignore
+    }
+  }, [placedOrderIds, tableInfo]);
 
   const fetchStock = useCallback(async () => {
     try {
@@ -197,21 +206,18 @@ export default function RestaurantMenu() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [menuRes, categoriesRes, ordersRes, pmRes] = await Promise.all([
+      const [menuRes, categoriesRes, pmRes] = await Promise.all([
         fetch('/api/menu'),
         fetch('/api/categories'),
-        fetch('/api/orders'),
         fetch('/api/payment-methods')
       ]);
-      const [menuData, categoriesData, ordersData, pmData] = await Promise.all([
+      const [menuData, categoriesData, pmData] = await Promise.all([
         menuRes.json(),
         categoriesRes.json(),
-        ordersRes.json(),
         pmRes.json()
       ]);
       setMenuItems(menuData);
       setCategories(Array.isArray(categoriesData) ? categoriesData : []);
-      setOrders(Array.isArray(ordersData) ? ordersData : []);
       if (Array.isArray(pmData)) {
         setPaymentMethods(pmData.filter((m: any) => m.active));
         localStorage.setItem('paymentMethods', JSON.stringify(pmData));
@@ -221,9 +227,22 @@ export default function RestaurantMenu() {
     }
   }, []);
 
+  const fetchOrders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/orders');
+      if (res.ok) setOrders(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 5000);
+    return () => clearInterval(interval);
+  }, [fetchOrders]);
+
   useEffect(() => {
     loadAll();
-    const interval = setInterval(loadAll, 5000);
+    const interval = setInterval(loadAll, 10000);
     return () => clearInterval(interval);
   }, [loadAll]);
 
@@ -231,13 +250,75 @@ export default function RestaurantMenu() {
     localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
 
+  // ─────────────────────────────────────────────
+  // SYNC BRIDGE: restore placedOrderCart from server orders
+  // Key insight: fetch orders directly by IDs (not via `orders` state) to avoid
+  // React state batching issues. Runs whenever placedOrderIds changes.
+  // Skip if currently placing an order to avoid double-counting.
+  // ─────────────────────────────────────────────
   useEffect(() => {
-    try {
-      sessionStorage.setItem('placedOrderIds', JSON.stringify(placedOrderIds));
-    } catch {
-      // ignore
+    if (!tableInfo) return;
+    if (isPlacingOrder.current) return; // skip during order placement
+
+    // Step 1: restore placedOrderIds from localStorage if still empty
+    if (placedOrderIds.length === 0) {
+      const key = `placedOrderIds_${tableInfo.table}_${tableInfo.floor}`;
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setPlacedOrderIds(parsed.map(String));
+            return; // state change will re-trigger this effect
+          }
+        }
+      } catch { /* ignore */ }
     }
-  }, [placedOrderIds]);
+
+    if (placedOrderIds.length === 0) return;
+
+    // Step 2: fetch those specific orders in PARALLEL (not sequential)
+    const fetchMyOrders = async () => {
+      const results = await Promise.all(
+        placedOrderIds.map(async orderId => {
+          try {
+            const res = await fetch(`/api/orders/${orderId}`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            if (data && !isClosedOrderStatus(data.status)) return data;
+          } catch { /* skip */ }
+          return null;
+        })
+      );
+      const allOrders = results.filter(Boolean) as any[];
+
+      // Only apply orders for THIS table
+      const myOrders = allOrders.filter(o =>
+        normalizeSeatValue(o.table) === normalizeSeatValue(tableInfo.table) &&
+        normalizeSeatValue(o.floor) === normalizeSeatValue(tableInfo.floor)
+      );
+
+      if (myOrders.length === 0) {
+        // No open server orders → clear placedOrderCart
+        setPlacedOrderCart({});
+        return;
+      }
+
+      // Build placedOrderCart from server — REPLACE, don't merge (avoids duplicates)
+      const next: Record<string, number> = {};
+      myOrders.forEach(order => {
+        order.items.forEach((item: any) => {
+          next[item.id] = (next[item.id] || 0) + Number(item.qty || 0);
+        });
+      });
+
+      setPlacedOrderCart(() => next);
+    };
+
+    fetchMyOrders();
+  }, [placedOrderIds, tableInfo]);
+
+
 
   const getAvailableStock = useCallback((id: string) => {
     return getInventoryQuantity(inventoryStock[id]);
@@ -305,12 +386,12 @@ export default function RestaurantMenu() {
       maximumFractionDigits: 0,
     });
 
-  const menuSections = categories
+  const menuSections = useMemo(() => categories
     .map(category => ({
       ...category,
       items: menuItems.filter(item => item.categoryId === category.id || item.categoryName === category.name),
     }))
-    .filter(section => section.items.length > 0);
+    .filter(section => section.items.length > 0), [categories, menuItems]);
 
   const navSections = useMemo(() => [
     ...menuSections,
@@ -354,14 +435,21 @@ export default function RestaurantMenu() {
     0
   );
 
-  const displayOrderItemsCount = totalItems + existingOrderItemsCount + Object.values(placedOrderCart).reduce((s, qty) => s + qty, 0);
-  // Tổng tiền = giỏ mới + đơn đã đặt (placedOrderCart) + đơn từ bếp (visibleKitchenOrders)
+  const displayOrderItemsCount = totalItems + Object.values(placedOrderCart).reduce((s, qty) => s + qty, 0);
+
+  // placedCartTotal = giỏ đã đặt (được sync từ placedOrderIds)
   const placedCartTotal = Object.entries(placedOrderCart).reduce((sum, [id, qty]) => {
     const item = menuItems.find(m => m.id === id);
     return sum + (item ? item.price * qty : 0);
   }, 0);
-  const existingOrdersTotal = visibleKitchenOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
-  const displayGrandTotal = totalPrice + placedCartTotal + existingOrdersTotal;
+
+  // Avoid double-count: exclude orders that are already in placedOrderIds from visibleKitchenOrders
+  const placedIdsSet = new Set(placedOrderIds.map(String));
+  const newKitchenOrders = visibleKitchenOrders.filter(o => !placedIdsSet.has(String(o.id)));
+  const newOrdersTotal = newKitchenOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+
+  // Tổng = giỏ mới + đơn đã đặt (placedOrderCart) + đơn mới từ bếp (chưa có trong placedOrderIds)
+  const displayGrandTotal = totalPrice + placedCartTotal + newOrdersTotal;
   const featuredPaymentMethod = paymentMethods[0] || null;
 
   // canPayNow: chỉ cho thanh toán khi có món trong giỏ
@@ -370,6 +458,7 @@ export default function RestaurantMenu() {
   const placeOrder = useCallback(async () => {
     if (totalItems === 0) return null;
     setIsLoading(true);
+    isPlacingOrder.current = true;
     try {
       const payload = {
         table: tableInfo?.table || '',
@@ -403,18 +492,10 @@ export default function RestaurantMenu() {
           setToastType('success');
           setToastMsg(lang === 'vi' ? 'Đặt món thành công!' : 'Order placed!');
           setIsLoading(false); // Reset immediately so buttons re-enable right after modal shows
-          window.setTimeout(() => setToastMsg(''), 2800);
+          window.setTimeout(() => setToastMsg(''), 1200);
 
-          const newStock = { ...inventoryStock };
-          cartEntries.forEach(([id, qty]) => {
-            if (newStock[id]) newStock[id].sold += qty;
-          });
-          await fetch('/api/inventory', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newStock)
-          });
-          setInventoryStock(newStock);
+          // NOTE: Inventory deduction happens ONLY at payment confirmation (updateInventoryForPaidOrder)
+          // NOT at order placement — prevents double-deduction if staff/admin confirms payment later
 
           if (tableInfo) {
             const tRes = await fetch('/api/tables');
@@ -438,7 +519,7 @@ export default function RestaurantMenu() {
         } else {
           setToastType('error');
           setToastMsg(lang === 'vi' ? 'Không nhận được phản hồi từ server' : 'No response from server');
-          window.setTimeout(() => setToastMsg(''), 2500);
+          window.setTimeout(() => setToastMsg(''), 1200);
         }
       } else {
         let errorMsg = lang === 'vi' ? 'Đặt món thất bại' : 'Order failed';
@@ -456,10 +537,11 @@ export default function RestaurantMenu() {
       setToastMsg(lang === 'vi' ? 'Lỗi kết nối, vui lòng thử lại' : 'Connection error, please try again');
       window.setTimeout(() => setToastMsg(''), 2500);
     } finally {
+      isPlacingOrder.current = false;
       setIsLoading(false);
     }
     return null;
-  }, [tableInfo, totalItems, customerName, customerPhone, cartEntries, totalPrice, lang, inventoryStock]);
+  }, [tableInfo, totalItems, customerName, customerPhone, cartEntries, totalPrice, lang]);
 
   const handlePayNow = useCallback(async () => {
     if (isLoading) return;
@@ -472,7 +554,7 @@ export default function RestaurantMenu() {
     }
     // Empty cart: just open payment modal
     setPaymentModalOpen(true);
-  }, [totalItems, cartEntries.length, tableOpenOrders.length, placeOrder, isLoading]);
+  }, [totalItems, cartEntries.length, placeOrder, isLoading]);
 
   const scrollToSection = (id: string) => {
     sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -524,11 +606,95 @@ export default function RestaurantMenu() {
           </div>
           <button
             disabled={!customerName.trim() || !customerPhone.trim()}
-            onClick={() => {
+            onClick={async () => {
               const nameKey = `customerName_${tableInfo.table}_${tableInfo.floor}`;
               const phoneKey = `customerPhone_${tableInfo.table}_${tableInfo.floor}`;
               localStorage.setItem(nameKey, customerName.trim());
               localStorage.setItem(phoneKey, customerPhone.trim());
+
+              // ── Check table lock BEFORE letting customer in ──
+              let serverOrders: OrderType[] = [];
+              try {
+                const res = await fetch('/api/orders');
+                if (res.ok) serverOrders = await res.json();
+              } catch { /* use local state as fallback */ }
+
+              // Also check local `orders` state as fallback in case API fetch was slow
+              const allOrders = serverOrders.length > 0 ? serverOrders : orders;
+              const todayKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+              const openForTable = allOrders.filter((order: any) => {
+                const orderDate = String(order.createdAt || '').slice(0, 10);
+                const isToday = orderDate === todayKey;
+                return normalizeSeatValue(order.table) === normalizeSeatValue(tableInfo.table) &&
+                       normalizeSeatValue(order.floor) === normalizeSeatValue(tableInfo.floor) &&
+                       !isClosedOrderStatus(order.status) &&
+                       isToday;
+              });
+
+              const inputName = customerName.trim().toLowerCase();
+              const inputPhone = customerPhone.trim().replace(/\s+/g, '');
+
+              // This customer already has an open order → restore session
+              const matchedOrder = openForTable.find((order: any) =>
+                (order.customer || '').trim().toLowerCase() === inputName &&
+                (order.phone || '').replace(/\s+/g, '') === inputPhone
+              );
+
+              // Block: another customer (with different name/phone) has an order TODAY at this table
+              const hasOtherCustomerOrder = openForTable.some((order: any) =>
+                (order.customer || '').trim().toLowerCase() !== inputName ||
+                (order.phone || '').replace(/\s+/g, '') !== inputPhone
+              );
+
+              if (hasOtherCustomerOrder && !matchedOrder) {
+                setTableLockedMsg(
+                  lang === 'vi'
+                    ? 'Bàn này đang có khách khác đặt món. Vui lòng liên hệ nhân viên.'
+                    : 'This table has an active order from another customer. Please contact staff.'
+                );
+                return;
+              }
+
+              if (matchedOrder) {
+                // MERGE only items NOT already tracked (avoid duplicates if sync bridge already loaded)
+                setPlacedOrderCart(prev => {
+                  const next = { ...prev };
+                  matchedOrder.items.forEach((item: any) => {
+                    if (!Object.prototype.hasOwnProperty.call(next, item.id)) {
+                      next[item.id] = Number(item.qty || 0);
+                    }
+                  });
+                  return next;
+                });
+                if (matchedOrder.id) {
+                  setPlacedOrderIds(prev =>
+                    prev.includes(String(matchedOrder.id)) ? prev : [...prev, String(matchedOrder.id)]
+                  );
+                }
+              }
+
+              // Mark table as occupied immediately after confirming info
+              if (tableInfo) {
+                fetch('/api/tables').then(async res => {
+                  if (res.ok) {
+                    const currentTables = await res.json() as any[];
+                    const next = currentTables.map(tbl => {
+                      if (normalizeSeatValue(tbl.table) === normalizeSeatValue(tableInfo.table) &&
+                          normalizeSeatValue(tbl.floor) === normalizeSeatValue(tableInfo.floor)) {
+                        return { ...tbl, status: 'occupied' };
+                      }
+                      return tbl;
+                    });
+                    fetch('/api/tables', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(next)
+                    });
+                  }
+                }).catch(() => {});
+              }
+
               setIsInfoConfirmed(true);
             }}
             className="mt-5 w-full rounded-[1.35rem] bg-orange-500 py-3 text-sm font-bold disabled:opacity-50"
@@ -536,6 +702,25 @@ export default function RestaurantMenu() {
             {lang === 'vi' ? 'Vào menu' : 'Continue'}
           </button>
         </div>
+        {tableLockedMsg && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+            <div className="w-full max-w-sm rounded-[2rem] border-2 border-red-400 bg-red-950/95 p-8 shadow-2xl flex flex-col items-center gap-6 text-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-500 text-white">
+                <svg className="w-10 h-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </div>
+              <p className="text-red-200 text-base font-semibold leading-relaxed">{tableLockedMsg}</p>
+              <button
+                onClick={() => setTableLockedMsg('')}
+                className="w-full rounded-[1.35rem] bg-red-500 py-3 text-sm font-bold text-white"
+              >
+                {lang === 'vi' ? 'Đóng' : 'Close'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -544,24 +729,27 @@ export default function RestaurantMenu() {
     <div className={`min-h-screen transition-all duration-300 ${isDark ? 'bg-zinc-950 text-white' : 'bg-orange-50 text-zinc-900'}`} style={{ paddingBottom: displayOrderItemsCount > 0 ? '5rem' : 0 }}>
       <div className="max-w-7xl mx-auto p-4 lg:p-10 flex flex-col lg:flex-row gap-10">
         {toastMsg && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-            <div className={`rounded-[2rem] border-2 p-10 flex flex-col items-center justify-center gap-6 shadow-2xl animate-success-pop ${
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 cursor-pointer"
+            onClick={() => setToastMsg('')}
+          >
+            <div className={`rounded-3xl border-2 p-6 flex flex-col items-center justify-center gap-4 shadow-2xl animate-success-pop ${
               toastType === 'success'
                 ? 'border-emerald-400 bg-emerald-950/95 text-emerald-100'
                 : 'border-red-400 bg-red-950/95 text-red-100'
             }`}>
               {/* Animated checkmark/error circle */}
-              <div className={`relative flex h-24 w-24 items-center justify-center rounded-full animate-success-pulse ${
+              <div className={`relative flex h-16 w-16 items-center justify-center rounded-full animate-success-pulse ${
                 toastType === 'success'
                   ? 'bg-emerald-500 text-white'
                   : 'bg-red-500 text-white'
               }`}>
                 {toastType === 'success' ? (
-                  <svg className="w-12 h-12 animate-[checkDraw_0.6s_ease-out_forwards]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="w-9 h-9 animate-[checkDraw_0.5s_ease-out_forwards]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 ) : (
-                  <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="w-9 h-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10" />
                     <line x1="15" y1="9" x2="9" y2="15" />
                     <line x1="9" y1="9" x2="15" y2="15" />
@@ -569,7 +757,8 @@ export default function RestaurantMenu() {
                 )}
               </div>
               {/* Message */}
-              <p className="text-2xl font-black text-center">{toastMsg}</p>
+              <p className="text-xl font-black text-center">{toastMsg}</p>
+              <p className="text-xs text-center opacity-50">{lang === 'vi' ? 'Chạm để đóng' : 'Tap to dismiss'}</p>
             </div>
           </div>
         )}

@@ -244,6 +244,16 @@ export async function initializeDatabase() {
           )
         `);
 
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS inventory (
+            item_id VARCHAR(64) PRIMARY KEY,
+            initial_stock INT NOT NULL DEFAULT 0,
+            sold_qty INT NOT NULL DEFAULT 0,
+            incoming_qty INT NOT NULL DEFAULT 0,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
+
         await seedAccounts(pool);
         await seedCategories(pool);
         await seedMenu(pool);
