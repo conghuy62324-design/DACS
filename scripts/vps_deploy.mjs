@@ -79,6 +79,10 @@ async function run() {
     // Build Next.js with restricted memory to prevent OOM
     console.log("-> Running Next.js Build...");
     await execCommand('export NODE_OPTIONS=--max_old_space_size=512 && npm run build', remoteDir);
+    await execCommand('mkdir -p .next/standalone/.next', remoteDir);
+    await execCommand('rm -rf .next/standalone/.next/static .next/standalone/public', remoteDir);
+    await execCommand('cp -R .next/static .next/standalone/.next/static', remoteDir);
+    await execCommand('cp -R public .next/standalone/public', remoteDir);
 
     console.log("8. Starting application with PM2...");
     await execCommand('pm2 reload ecosystem.config.js || pm2 start ecosystem.config.js', remoteDir);
@@ -87,7 +91,32 @@ async function run() {
     const nginxConf = `
 server {
     listen 80;
-    server_name 160.191.243.56;
+    server_name 160.191.243.77;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+server {
+    listen 80;
+    server_name hchrestaurant.shop www.hchrestaurant.shop;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name hchrestaurant.shop www.hchrestaurant.shop;
+
+    ssl_certificate /etc/letsencrypt/live/hchrestaurant.shop/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/hchrestaurant.shop/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -107,7 +136,7 @@ server {
 
     console.log("\n=========================");
     console.log("✅ DEPLOYMENT FINISHED!");
-    console.log("You can now verify the website at http://160.191.243.56");
+    console.log("You can now verify the website at https://hchrestaurant.shop");
     console.log("=========================\n");
 
     ssh.dispose();
