@@ -1,4 +1,4 @@
-import { NodeSSH } from 'node-ssh';
+﻿import { NodeSSH } from 'node-ssh';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -10,9 +10,9 @@ const ssh = new NodeSSH();
 
 async function run() {
   try {
-    console.log("Connecting to VPS (160.191.243.56)...");
+    console.log("Connecting to VPS (160.191.243.77)...");
     await ssh.connect({
-      host: '160.191.243.56',
+      host: '160.191.243.77',
       username: 'root',
       privateKeyPath: 'c:\\Users\\os\\Downloads\\DACS\\DACS\\vps_key',
       readyTimeout: 99999,
@@ -135,7 +135,7 @@ server {
     await execCommand('systemctl enable nginx || true');
 
     console.log("\n=========================");
-    console.log("✅ DEPLOYMENT FINISHED!");
+    console.log("âœ… DEPLOYMENT FINISHED!");
     console.log("You can now verify the website at https://hchrestaurant.shop");
     console.log("=========================\n");
 

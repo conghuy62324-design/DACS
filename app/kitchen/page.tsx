@@ -208,7 +208,6 @@ export default function KitchenView() {
 
   const markCooked = async (order: Order) => {
     await updateOrderStatus(order, STATUS.cooked);
-    setTimeout(() => printOrder(order), 300);
   };
 
   const renderOrderLines = (order: Order) => {

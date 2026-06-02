@@ -1,4 +1,4 @@
-import { NodeSSH } from 'node-ssh';
+﻿import { NodeSSH } from 'node-ssh';
 
 const ssh = new NodeSSH();
 
@@ -9,25 +9,25 @@ async function cmd(command) {
 
 async function run() {
   try {
-    console.log('🔌 Connecting to VPS...');
+    console.log('ðŸ”Œ Connecting to VPS...');
     await ssh.connect({
-      host: '160.191.243.56',
+      host: '160.191.243.77',
       username: 'root',
-      password: 'Huy0405Huy2004',
+      password: process.env.VPS_PASSWORD || '',
       tryKeyboard: true,
       readyTimeout: 20000,
     });
-    console.log('✅ Connected!');
+    console.log('âœ… Connected!');
 
     const d = '/var/www/dacs';
     const local = 'C:/Users/os/Downloads/DACS/DACS';
 
     // Step 1: Kill everything
-    console.log('\n🛑 Stopping all processes...');
+    console.log('\nðŸ›‘ Stopping all processes...');
     await cmd('pm2 delete all 2>/dev/null; pkill -9 node 2>/dev/null; sleep 2; echo killed');
 
     // Step 2: Upload ALL source files (clean slate)
-    console.log('\n📤 Uploading source files...');
+    console.log('\nðŸ“¤ Uploading source files...');
     const failed = [];
     await ssh.putDirectory(local, d, {
       recursive: true,
@@ -39,21 +39,21 @@ async function run() {
       },
       tick: (lp) => { /* silent */ }
     });
-    console.log('✅ Upload complete');
+    console.log('âœ… Upload complete');
 
     // Step 3: Clean old build and rebuild
-    console.log('\n🔨 Cleaning old build...');
+    console.log('\nðŸ”¨ Cleaning old build...');
     await cmd(`cd ${d} && rm -rf .next && echo .next cleaned`);
 
-    console.log('\n🔨 Building Next.js...');
+    console.log('\nðŸ”¨ Building Next.js...');
     const buildR = await cmd(`cd ${d} && npm run build 2>&1`);
     console.log(buildR.substring(0, 600));
     if (buildR.includes('error') || buildR.includes('Error')) {
-      console.log('⚠️ Build has warnings but checking if it succeeded...');
+      console.log('âš ï¸ Build has warnings but checking if it succeeded...');
     }
 
     // Step 4: Copy static files to standalone
-    console.log('\n📁 Setting up standalone...');
+    console.log('\nðŸ“ Setting up standalone...');
     await cmd(`mkdir -p ${d}/.next/standalone/.next && cp -r ${d}/.next/static ${d}/.next/standalone/.next/ 2>/dev/null && echo static copied`);
     await cmd(`cp -r ${d}/public/. ${d}/.next/standalone/ 2>/dev/null && echo public copied`);
 
@@ -73,7 +73,7 @@ async function run() {
     await cmd(`echo "${eco64}" | base64 -d > ${d}/.next/standalone/ecosystem.config.js && echo ecosystem written`);
 
     // Step 6: Fix nginx proxy timeouts
-    console.log('\n⚙️ Updating nginx config...');
+    console.log('\nâš™ï¸ Updating nginx config...');
     const nginxConf = `proxy_read_timeout 300s;
 proxy_connect_timeout 300s;
 proxy_send_timeout 300s;
@@ -99,7 +99,7 @@ location / {
     await cmd('nginx -s reload 2>&1');
 
     // Step 7: Start PM2
-    console.log('\n🚀 Starting server with PM2...');
+    console.log('\nðŸš€ Starting server with PM2...');
     const startR = await cmd(`cd ${d}/.next/standalone && pm2 start ecosystem.config.js 2>&1`);
     console.log(startR.substring(0, 200));
 
@@ -107,7 +107,7 @@ location / {
     await new Promise(r => setTimeout(r, 5000));
 
     // Step 8: Verify
-    console.log('\n✅ Verification:');
+    console.log('\nâœ… Verification:');
     const httpR = await cmd('curl -s -o /dev/null -w "HTTP:%{http_code}" http://127.0.0.1:3000');
     console.log('Direct:', httpR);
 
@@ -120,12 +120,12 @@ location / {
     const pm2Logs = await cmd('pm2 logs hch-restaurant --nostream --lines 5 2>&1');
     console.log('PM2 logs:', pm2Logs.substring(0, 300));
 
-    console.log('\n🎉 Done! https://hchrestaurant.shop');
+    console.log('\nðŸŽ‰ Done! https://hchrestaurant.shop');
 
     ssh.dispose();
     process.exit(0);
   } catch (e) {
-    console.error('❌ FATAL:', e.message);
+    console.error('âŒ FATAL:', e.message);
     ssh.dispose();
     process.exit(1);
   }

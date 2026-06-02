@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
+  isClosedOrderStatus,
   isPaidOrderStatus,
   normalizeSeatValue,
   readPaymentMethodsFromStorage,
@@ -28,6 +29,8 @@ interface Order {
   status: string;
   handler: string;
   createdAt: string;
+  sourceOrderIds?: string[];
+  sourceOrders?: Order[];
 }
 
 interface MenuItem {
@@ -73,6 +76,33 @@ export default function PayPage() {
   const [msg, setMsg] = useState('');
   const [isPaying, setIsPaying] = useState(false);
 
+  const combineOrders = (sourceOrders: Order[]): Order => {
+    const [firstOrder] = sourceOrders;
+    const itemMap = new Map<string, number>();
+
+    sourceOrders.forEach(sourceOrder => {
+      sourceOrder.items.forEach(item => {
+        itemMap.set(item.id, (itemMap.get(item.id) || 0) + Number(item.qty || 0));
+      });
+    });
+
+    return {
+      ...firstOrder,
+      id: sourceOrders.length > 1 ? `${firstOrder.id} +${sourceOrders.length - 1}` : firstOrder.id,
+      customer: sourceOrders.find(sourceOrder => sourceOrder.customer)?.customer || firstOrder.customer,
+      items: Array.from(itemMap.entries()).map(([itemId, qty]) => ({ id: itemId, qty })),
+      total: sourceOrders.reduce((sum, sourceOrder) => sum + Number(sourceOrder.total || 0), 0),
+      status: sourceOrders.every(sourceOrder => isPaidOrderStatus(sourceOrder.status)) ? PAID_STATUS : firstOrder.status,
+      handler: [...new Set(sourceOrders.map(sourceOrder => sourceOrder.handler).filter(Boolean))].join(', '),
+      createdAt: sourceOrders.reduce(
+        (earliest, sourceOrder) => new Date(sourceOrder.createdAt) < new Date(earliest) ? sourceOrder.createdAt : earliest,
+        firstOrder.createdAt,
+      ),
+      sourceOrderIds: sourceOrders.map(sourceOrder => sourceOrder.id),
+      sourceOrders,
+    };
+  };
+
   useEffect(() => {
     if (!id) return;
 
@@ -91,7 +121,25 @@ export default function PayPage() {
         const res = await fetch(`/api/orders/${id}`);
         if (res.ok) {
           const data = await res.json();
-          setOrder(data);
+          if (isClosedOrderStatus(data.status)) {
+            setOrder(data);
+            return;
+          }
+
+          const allRes = await fetch('/api/orders');
+          if (!allRes.ok) {
+            setOrder(data);
+            return;
+          }
+
+          const allOrders: Order[] = await allRes.json();
+          const relatedOpenOrders = allOrders.filter(candidate =>
+            normalizeSeatValue(candidate.table) === normalizeSeatValue(data.table) &&
+            normalizeSeatValue(candidate.floor) === normalizeSeatValue(data.floor) &&
+            !isClosedOrderStatus(candidate.status)
+          );
+
+          setOrder(relatedOpenOrders.length > 1 ? combineOrders(relatedOpenOrders) : data);
         } else if (res.status === 404) {
           setOrder(null);
         }
@@ -159,19 +207,41 @@ export default function PayPage() {
     setIsPaying(true);
 
     try {
-      const res = await fetch('/api/orders', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: order.id, status: PAID_STATUS }),
-      });
+      const targetIds = order.sourceOrderIds?.length ? order.sourceOrderIds : [order.id];
+      const targetIdSet = new Set(targetIds.map(String));
+      const targetOrders = order.sourceOrders?.length ? order.sourceOrders : [order];
 
-      if (!res.ok) {
-        throw new Error('Failed to update order');
+      for (const orderId of targetIds) {
+        const res = await fetch('/api/orders', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: orderId, status: PAID_STATUS }),
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to update order');
+        }
       }
 
       setOrder({ ...order, status: PAID_STATUS });
       setMsg('Thanh toán thành công.');
-      updateInventoryForPaidOrder(order);
+      targetOrders.forEach(sourceOrder => updateInventoryForPaidOrder(sourceOrder));
+      let hasOtherOpenOrders = false;
+      try {
+        const allRes = await fetch('/api/orders');
+        if (allRes.ok) {
+          const allOrders: Order[] = await allRes.json();
+          hasOtherOpenOrders = allOrders.some(candidate =>
+            !targetIdSet.has(String(candidate.id)) &&
+            normalizeSeatValue(candidate.table) === normalizeSeatValue(order.table) &&
+            normalizeSeatValue(candidate.floor) === normalizeSeatValue(order.floor) &&
+            !isClosedOrderStatus(candidate.status)
+          );
+        }
+      } catch {
+        // ignore status sync fallback
+      }
+      const nextTableStatus = hasOtherOpenOrders ? 'occupied' : 'empty';
       
       // Update table status to empty on server
       try {
@@ -181,7 +251,7 @@ export default function PayPage() {
           const next = currentTables.map(tbl => {
             if (normalizeSeatValue(tbl.table) === normalizeSeatValue(order.table) && 
                 normalizeSeatValue(tbl.floor) === normalizeSeatValue(order.floor)) {
-              return { ...tbl, status: 'empty' };
+              return { ...tbl, status: nextTableStatus };
             }
             return tbl;
           });
@@ -194,7 +264,7 @@ export default function PayPage() {
       } catch (err) {
         console.error('Failed to sync empty status', err);
       }
-      updateTableStatusInStorage(order.table, order.floor, 'empty');
+      updateTableStatusInStorage(order.table, order.floor, nextTableStatus);
     } catch (err) {
       console.error(err);
       setMsg('Thanh toán thất bại.');

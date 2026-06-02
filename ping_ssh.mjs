@@ -1,11 +1,11 @@
-import { NodeSSH } from 'node-ssh';
+﻿import { NodeSSH } from 'node-ssh';
 const ssh = new NodeSSH();
 
-console.log('Testing SSH to 160.191.243.56 with password...');
+console.log('Testing SSH to 160.191.243.77 with password...');
 ssh.connect({
-  host: '160.191.243.56',
+  host: '160.191.243.77',
   username: 'root',
-  password: 'Huy0405Huy2004',
+  password: process.env.VPS_PASSWORD || '',
   readyTimeout: 15000,
   tryKeyboard: true,
 }).then(async () => {

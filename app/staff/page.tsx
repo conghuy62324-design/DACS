@@ -4,7 +4,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { LogOut, Minus, Moon, Plus, Sun, Trash2, Utensils } from 'lucide-react';
-import { isClosedOrderStatus, normalizeSeatValue, updateInventoryForPaidOrder, updateTableStatusInStorage } from '@/lib/payment-client';
+import { QRCodeCanvas } from 'qrcode.react';
+import {
+  isClosedOrderStatus,
+  normalizeSeatValue,
+  readPaymentMethodsFromStorage,
+  updateInventoryForPaidOrder,
+  updateTableStatusInStorage,
+  type PaymentMethod,
+} from '@/lib/payment-client';
 
 interface MenuItem {
   id: string;
@@ -53,6 +61,7 @@ interface OrderType {
   status: string;
   handler: string;
   createdAt: string;
+  sourceOrderIds?: string[];
 }
 
 interface TableInfo {
@@ -60,7 +69,7 @@ interface TableInfo {
   floor: string;
 }
 
-type ContextMode = 'order' | 'table';
+type ContextMode = 'mv' | 'table';
 
 type TableStorageItem = {
   id: string;
@@ -100,8 +109,15 @@ const saveTables = (tables: TableStorageItem[]) => {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem('tables', JSON.stringify(tables));
+    fetch('/api/tables', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tables),
+    }).catch(() => {});
   } catch {}
 };
+
+const makeTakeawayCode = () => `MV${String(Date.now()).slice(-6)}`;
 
 export default function StaffOrderPage() {
   const lang: 'vi' | 'en' = 'vi';
@@ -110,6 +126,8 @@ export default function StaffOrderPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [inventoryStock, setInventoryStock] = useState<Record<string, InventoryEntry>>({});
   const [orders, setOrders] = useState<OrderType[]>([]);
+  const [tables, setTables] = useState<TableStorageItem[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
@@ -123,7 +141,9 @@ export default function StaffOrderPage() {
   const [authError, setAuthError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showOrderInfoModal, setShowOrderInfoModal] = useState(false);
-  const [contextMode, setContextMode] = useState<ContextMode>('order');
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [pendingPaymentOrder, setPendingPaymentOrder] = useState<OrderType | null>(null);
+  const [contextMode, setContextMode] = useState<ContextMode>('table');
   const [tableInfo, setTableInfo] = useState<TableInfo>({ table: '', floor: '' });
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -146,12 +166,26 @@ export default function StaffOrderPage() {
         normalizeSeatValue(item.table) === normalizeSeatValue(tableInfo.table) &&
         normalizeSeatValue(item.floor) === normalizeSeatValue(tableInfo.floor)
       ) {
-        if (status === 'occupied' && item.status !== 'empty') return item;
+        if (item.status === status) return item;
         return { ...item, status };
       }
       return item;
     }));
   }, [tableInfo.floor, tableInfo.table]);
+
+  const syncSpecificTableStatus = useCallback((tableNumber?: string, floorNumber?: string, status = 'empty') => {
+    if (!tableNumber || !floorNumber) return;
+    saveTables(loadTables().map(item => {
+      if (
+        normalizeSeatValue(item.table) === normalizeSeatValue(tableNumber) &&
+        normalizeSeatValue(item.floor) === normalizeSeatValue(floorNumber)
+      ) {
+        if (item.status === status) return item;
+        return { ...item, status };
+      }
+      return item;
+    }));
+  }, []);
 
   useEffect(() => {
     const rawCart = localStorage.getItem('staffCart');
@@ -178,6 +212,36 @@ export default function StaffOrderPage() {
     fetchInventory();
     const interval = window.setInterval(fetchInventory, 5000);
     return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const syncPaymentMethods = () => {
+      setPaymentMethods(readPaymentMethodsFromStorage().filter(method => method.active));
+    };
+
+    const fetchPaymentMethods = async () => {
+      try {
+        const res = await fetch('/api/payment-methods');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            localStorage.setItem('paymentMethods', JSON.stringify(data));
+            setPaymentMethods(data.filter((method: PaymentMethod) => method.active));
+          }
+        }
+      } catch {
+        syncPaymentMethods();
+      }
+    };
+
+    syncPaymentMethods();
+    fetchPaymentMethods();
+    window.addEventListener('storage', syncPaymentMethods);
+    const interval = window.setInterval(syncPaymentMethods, 5000);
+    return () => {
+      window.removeEventListener('storage', syncPaymentMethods);
+      window.clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -208,10 +272,14 @@ export default function StaffOrderPage() {
         return;
       }
       const draft = JSON.parse(raw) as { table?: string; floor?: string; customerName?: string; customerPhone?: string; contextMode?: ContextMode };
-      setTableInfo({ table: String(draft.table || ''), floor: String(draft.floor || '') });
+      const nextMode = draft.contextMode === 'mv' ? 'mv' : 'table';
+      const draftTable = String(draft.table || '');
+      const draftFloor = String(draft.floor || '');
+      const invalidTableDraft = nextMode === 'table' && (draftTable.toUpperCase().startsWith('MV') || draftFloor.toLowerCase().includes('mang'));
+      setTableInfo(invalidTableDraft ? { table: '', floor: '' } : { table: draftTable, floor: draftFloor });
       setCustomerName(String(draft.customerName || ''));
       setCustomerPhone(String(draft.customerPhone || ''));
-      setContextMode(draft.contextMode === 'table' ? 'table' : 'order');
+      setContextMode(nextMode);
       setShowOrderInfoModal(false);
     } catch {
       setShowOrderInfoModal(false);
@@ -226,13 +294,15 @@ export default function StaffOrderPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [menuRes, categoriesRes, ordersRes] = await Promise.all([fetch('/api/menu'), fetch('/api/categories'), fetch('/api/orders')]);
+        const [menuRes, categoriesRes, ordersRes, tablesRes] = await Promise.all([fetch('/api/menu'), fetch('/api/categories'), fetch('/api/orders'), fetch('/api/tables')]);
         const menuData: MenuItem[] = await menuRes.json();
         const categoriesData: Category[] = await categoriesRes.json();
         const ordersData: OrderType[] = await ordersRes.json();
+        const tablesData: TableStorageItem[] = await tablesRes.json();
         setMenuItems(Array.isArray(menuData) ? menuData : []);
         setCategories(Array.isArray(categoriesData) ? categoriesData : []);
         setOrders(Array.isArray(ordersData) ? ordersData : []);
+        setTables(Array.isArray(tablesData) ? tablesData : []);
       } catch (error) {
         console.error(error);
       }
@@ -295,10 +365,9 @@ export default function StaffOrderPage() {
   }, 0);
   const totalItems = cartEntries.reduce((total, [, qty]) => total + qty, 0);
   const hasOrderInfo = Boolean(
-    tableInfo.table.trim() &&
-    tableInfo.floor.trim() &&
-    customerName.trim() &&
-    (customerPhone.trim() || contextMode === 'table')
+    contextMode === 'mv'
+      ? tableInfo.table.trim()
+      : tableInfo.table.trim() && tableInfo.floor.trim()
   );
 
   const resetCurrentContext = useCallback(() => {
@@ -308,7 +377,7 @@ export default function StaffOrderPage() {
     setLinkedOrderIds([]);
     setHistoryItems({});
     setCart({});
-    setContextMode('order');
+    setContextMode('table');
     localStorage.removeItem('staffCart');
     if (draftKey) localStorage.removeItem(draftKey);
   }, [draftKey]);
@@ -336,7 +405,8 @@ export default function StaffOrderPage() {
     );
 
     if (!matchedOrders.length) {
-      resetCurrentContext();
+      setLinkedOrderIds([]);
+      setHistoryItems({});
       return;
     }
 
@@ -370,7 +440,7 @@ export default function StaffOrderPage() {
       );
 
       if (hasOpenOrders) {
-        return table.status === 'ordering' ? table : { ...table, status: 'ordering' };
+        return table.status === 'occupied' ? table : { ...table, status: 'occupied' };
       }
 
       if (hasClosedOrders && table.status !== 'empty') {
@@ -408,32 +478,84 @@ export default function StaffOrderPage() {
     );
   }, [orders, tableInfo.floor, tableInfo.table]);
   const paymentTotal = useMemo(() => paymentOrders.reduce((sum, order) => sum + Number(order.total || 0), 0), [paymentOrders]);
-  const historyEntries = useMemo(() => Object.entries(historyItems), [historyItems]);
+  const paymentOrder = useMemo<OrderType | null>(() => {
+    if (!paymentOrders.length) return null;
 
-  const openPaymentPage = useCallback((orderId: string) => {
-    window.open(`/pay/${orderId}`, '_blank', 'noopener,noreferrer');
+    const [firstOrder] = paymentOrders;
+    const itemMap = new Map<string, number>();
+    paymentOrders.forEach(order => {
+      order.items.forEach(item => {
+        itemMap.set(item.id, (itemMap.get(item.id) || 0) + Number(item.qty || 0));
+      });
+    });
+
+    return {
+      ...firstOrder,
+      id: paymentOrders.length > 1 ? `${firstOrder.id} +${paymentOrders.length - 1}` : firstOrder.id,
+      customer: paymentOrders.find(order => order.customer)?.customer || firstOrder.customer,
+      items: Array.from(itemMap.entries()).map(([id, qty]) => ({ id, qty })),
+      total: paymentTotal,
+      handler: [...new Set(paymentOrders.map(order => order.handler).filter(Boolean))].join(', '),
+      createdAt: paymentOrders.reduce(
+        (earliest, order) => new Date(order.createdAt) < new Date(earliest) ? order.createdAt : earliest,
+        firstOrder.createdAt,
+      ),
+      sourceOrderIds: paymentOrders.map(order => order.id),
+    };
+  }, [paymentOrders, paymentTotal]);
+  const activeOrderEntries = useMemo(() => {
+    if (!paymentOrder) return [];
+    return paymentOrder.items
+      .map(item => ({
+        ...item,
+        menuItem: menuItems.find(menuItem => menuItem.id === item.id),
+      }))
+      .filter(item => item.menuItem);
+  }, [menuItems, paymentOrder]);
+  const historyEntries = useMemo(() => Object.entries(historyItems), [historyItems]);
+  const featuredPaymentMethod = paymentMethods[0] || null;
+
+  const openPaymentModal = useCallback((order: OrderType) => {
+    setPendingPaymentOrder(order);
+    setPaymentModalOpen(true);
   }, []);
 
   const payOrderNow = useCallback(async (order: OrderType) => {
     try {
       const paidStatus = 'Đã thanh toán';
-      const res = await fetch('/api/orders', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: order.id, status: paidStatus }),
-      });
+      const targetIds = order.sourceOrderIds?.length ? order.sourceOrderIds : [order.id];
+      const targetIdSet = new Set(targetIds.map(String));
+      const targetOrders = orders.filter(item => targetIdSet.has(String(item.id)));
 
-      if (!res.ok) throw new Error('pay failed');
+      for (const orderId of targetIds) {
+        const res = await fetch('/api/orders', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: orderId, status: paidStatus }),
+        });
 
-      updateInventoryForPaidOrder(order);
-      updateTableStatusInStorage(order.table, order.floor, 'empty');
-      setOrders(current => current.map(item => (item.id === order.id ? { ...item, status: paidStatus } : item)));
-      showToast(`Đã thanh toán đơn #${order.id}`);
+        if (!res.ok) throw new Error('pay failed');
+      }
+
+      targetOrders.forEach(item => updateInventoryForPaidOrder(item));
+      const hasOtherOpenOrders = orders.some(item =>
+        !targetIdSet.has(String(item.id)) &&
+        normalizeSeatValue(item.table) === normalizeSeatValue(order.table) &&
+        normalizeSeatValue(item.floor) === normalizeSeatValue(order.floor) &&
+        !isClosedOrderStatus(item.status)
+      );
+      const nextTableStatus = hasOtherOpenOrders ? 'occupied' : 'empty';
+      updateTableStatusInStorage(order.table, order.floor, nextTableStatus);
+      syncSpecificTableStatus(order.table, order.floor, nextTableStatus);
+      setOrders(current => current.map(item => (targetIdSet.has(String(item.id)) ? { ...item, status: paidStatus } : item)));
+      setPaymentModalOpen(false);
+      setPendingPaymentOrder(null);
+      showToast(`Đã thanh toán ${targetIds.length} đơn của bàn ${order.table}`);
     } catch (error) {
       console.error(error);
       showToast(`Không thể thanh toán đơn #${order.id}`, 'error');
     }
-  }, [showToast]);
+  }, [orders, showToast, syncSpecificTableStatus]);
 
   useEffect(() => {
     if (!navSections.length) {
@@ -524,7 +646,17 @@ export default function StaffOrderPage() {
         }),
       });
       if (!res.ok) throw new Error('bad');
-      syncTableStatus('ordering');
+      const data = await res.json();
+      const createdOrder = data?.order as OrderType | undefined;
+      if (createdOrder?.id) {
+        setOrders(current => {
+          if (current.some(order => order.id === createdOrder.id)) return current;
+          return [...current, createdOrder];
+        });
+      }
+      if (contextMode === 'table') {
+        syncTableStatus('occupied');
+      }
       await (async () => {
         try {
           const ordersRes = await fetch('/api/orders');
@@ -551,13 +683,15 @@ export default function StaffOrderPage() {
 
   const confirmOrderInfo = () => {
     if (!hasOrderInfo) return;
-    if (contextMode === 'order') {
+    if (contextMode === 'mv') {
       setLinkedOrderIds([]);
       setHistoryItems({});
       setCart({});
       localStorage.removeItem('staffCart');
     }
-    syncTableStatus('occupied');
+    if (contextMode === 'table') {
+      syncTableStatus('occupied');
+    }
     setShowOrderInfoModal(false);
   };
 
@@ -576,7 +710,7 @@ export default function StaffOrderPage() {
     customerLabel: 'Tên khách',
     phoneLabel: 'SĐT',
     confirmInfo: 'Vào menu',
-    orderMode: 'Order',
+    orderMode: 'MV',
     tableMode: 'Bàn',
     closeInfo: 'Thoát',
     currentOrder: 'Đơn đang lên',
@@ -587,13 +721,13 @@ export default function StaffOrderPage() {
   const renderMenuCard = (item: MenuItem) => (
     <div
       key={item.id}
-      className={`group relative overflow-hidden rounded-[2rem] border p-4 transition-all duration-200 hover:-translate-y-1 ${
+      className={`group relative overflow-hidden rounded-[1.5rem] border p-3 transition-all duration-200 sm:rounded-[2rem] sm:p-4 lg:hover:-translate-y-1 ${
         isDark ? 'border-white/10 bg-zinc-900/90 shadow-[0_20px_50px_rgba(0,0,0,0.22)]' : 'border-white bg-white/90 shadow-[0_20px_50px_rgba(249,115,22,0.12)]'
       }`}
     >
-      <div className="flex gap-4">
+      <div className="flex gap-3 sm:gap-4">
         <div className="relative shrink-0">
-          <Image src={item.image} width={112} height={112} unoptimized className="h-24 w-24 rounded-[1.5rem] object-cover shadow-xl lg:h-28 lg:w-28" alt={item.nameVi} />
+          <Image src={item.image} width={112} height={112} unoptimized className="h-20 w-20 rounded-[1.2rem] object-cover shadow-xl sm:h-24 sm:w-24 lg:h-28 lg:w-28" alt={item.nameVi} />
           {(cart[item.id] || 0) > 0 && (
             <span className="absolute -right-2 -top-2 inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-orange-500 px-2 text-xs font-black text-white shadow-lg shadow-orange-500/30">
               {cart[item.id]}
@@ -601,23 +735,23 @@ export default function StaffOrderPage() {
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h4 className="text-lg font-black leading-tight lg:text-[1.35rem]">{item.nameVi}</h4>
-          {(item.descriptionVi || '').trim() ? <p className={`mt-1 line-clamp-2 text-sm ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>{item.descriptionVi}</p> : null}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <h4 className="text-base font-black leading-tight sm:text-lg lg:text-[1.35rem]">{item.nameVi}</h4>
+          {(item.descriptionVi || '').trim() ? <p className={`mt-1 line-clamp-1 text-xs sm:line-clamp-2 sm:text-sm ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>{item.descriptionVi}</p> : null}
+          <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-3">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-500">★ {item.rating} • {ui.prepTime}</p>
             {getAvailableStock(item.id) <= 0 && <span className="rounded-full bg-red-500/15 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-red-400">Hết hàng</span>}
           </div>
         </div>
       </div>
-      <div className="mt-4 flex items-end justify-between gap-4">
+      <div className="mt-3 flex items-end justify-between gap-3 sm:mt-4 sm:gap-4">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-zinc-500">Giá bán</p>
-          <span className="mt-1 block text-2xl font-black tracking-tight text-orange-500">{formatCurrency(item.price)}</span>
+          <span className="mt-1 block text-xl font-black tracking-tight text-orange-500 sm:text-2xl">{formatCurrency(item.price)}</span>
         </div>
         <button
           onClick={() => addToCart(item.id)}
           disabled={getAvailableStock(item.id) <= 0}
-          className={`inline-flex items-center gap-2 rounded-[1.25rem] px-4 py-3 text-sm font-black transition-all active:scale-95 ${
+          className={`inline-flex min-h-12 items-center gap-2 rounded-[1.25rem] px-4 py-3 text-sm font-black transition-all active:scale-95 ${
             getAvailableStock(item.id) <= 0 ? 'cursor-not-allowed bg-zinc-800 text-zinc-500' : 'bg-orange-500 text-white shadow-xl shadow-orange-500/25 hover:bg-orange-400'
           }`}
         >
@@ -729,26 +863,45 @@ export default function StaffOrderPage() {
       {showOrderInfoModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-[2rem] border border-white/10 bg-zinc-900/95 p-6 text-white shadow-[0_20px_80px_rgba(0,0,0,0.45)]">
-            <p className="text-[11px] uppercase tracking-[0.3em] text-orange-400">{contextMode === 'table' ? 'Chọn bàn đang phục vụ' : 'Tạo order mới'}</p>
-            <h2 className="mt-3 text-2xl font-black">{contextMode === 'table' ? 'Mở lại đơn theo bàn' : 'Nhập bàn và khách'}</h2>
-            <p className="mt-2 text-sm text-zinc-400">{contextMode === 'table' ? 'Chọn đúng bàn đã có khách order để xem lại đơn cũ và gọi tiếp món mới.' : 'Nhập bàn, tầng và thông tin khách để bắt đầu một phiếu order mới.'}</p>
+            <p className="text-[11px] uppercase tracking-[0.3em] text-orange-400">{contextMode === 'table' ? 'Chọn bàn' : 'Mang về'}</p>
+            <h2 className="mt-3 text-2xl font-black">{contextMode === 'table' ? 'Mở bàn để order' : 'Tạo đơn mang về'}</h2>
+            <p className="mt-2 text-sm text-zinc-400">{contextMode === 'table' ? 'Chọn bàn khách đang ngồi để order mới, gọi thêm hoặc thanh toán.' : 'Nhập tên và SĐT nếu có. Mã MV sẽ gửi xuống bếp để đóng gói.'}</p>
             <div className="mt-5 grid gap-3 md:grid-cols-2">
-              <div className="rounded-[1.35rem] border border-white/10 bg-black/25 px-4 py-3">
-                <label className="block text-[11px] uppercase tracking-[0.24em] text-zinc-500">{ui.tableLabel}</label>
-                <input value={tableInfo.table} onChange={e => setTableInfo(prev => ({ ...prev, table: e.target.value }))} className="mt-2 w-full bg-transparent text-base font-medium text-white outline-none placeholder:text-zinc-500" placeholder="Ví dụ 05" />
-              </div>
-              <div className="rounded-[1.35rem] border border-white/10 bg-black/25 px-4 py-3">
-                <label className="block text-[11px] uppercase tracking-[0.24em] text-zinc-500">{ui.floorLabel}</label>
-                <input value={tableInfo.floor} onChange={e => setTableInfo(prev => ({ ...prev, floor: e.target.value }))} className="mt-2 w-full bg-transparent text-base font-medium text-white outline-none placeholder:text-zinc-500" placeholder="1" />
-              </div>
-              {contextMode !== 'table' && (
+              {contextMode === 'table' ? (
+                <>
+                  <div className="rounded-[1.35rem] border border-white/10 bg-black/25 px-4 py-3">
+                    <label className="block text-[11px] uppercase tracking-[0.24em] text-zinc-500">{ui.tableLabel}</label>
+                    <input
+                      value={tableInfo.table}
+                      onChange={e => setTableInfo(prev => ({ ...prev, table: e.target.value.replace(/[^\d]/g, '') }))}
+                      inputMode="numeric"
+                      className="mt-2 w-full bg-transparent text-base font-bold text-white outline-none placeholder:text-zinc-500"
+                      placeholder="Ví dụ 03"
+                    />
+                  </div>
+                  <div className="rounded-[1.35rem] border border-white/10 bg-black/25 px-4 py-3">
+                    <label className="block text-[11px] uppercase tracking-[0.24em] text-zinc-500">{ui.floorLabel}</label>
+                    <input
+                      value={tableInfo.floor}
+                      onChange={e => setTableInfo(prev => ({ ...prev, floor: e.target.value }))}
+                      inputMode="numeric"
+                      className="mt-2 w-full bg-transparent text-base font-bold text-white outline-none placeholder:text-zinc-500"
+                      placeholder="1"
+                    />
+                  </div>
+                </>
+              ) : (
                 <>
                   <div className="rounded-[1.35rem] border border-white/10 bg-black/25 px-4 py-3 md:col-span-2">
-                    <label className="block text-[11px] uppercase tracking-[0.24em] text-zinc-500">{ui.customerLabel}</label>
-                    <input value={customerName} onChange={e => setCustomerName(e.target.value)} className="mt-2 w-full bg-transparent text-base font-medium text-white outline-none placeholder:text-zinc-500" />
+                    <label className="block text-[11px] uppercase tracking-[0.24em] text-zinc-500">Mã mang về</label>
+                    <p className="mt-2 text-xl font-black text-orange-300">{tableInfo.table || 'Chưa có mã'}</p>
                   </div>
                   <div className="rounded-[1.35rem] border border-white/10 bg-black/25 px-4 py-3 md:col-span-2">
-                    <label className="block text-[11px] uppercase tracking-[0.24em] text-zinc-500">{ui.phoneLabel}</label>
+                    <label className="block text-[11px] uppercase tracking-[0.24em] text-zinc-500">Tên khách</label>
+                    <input value={customerName} onChange={e => setCustomerName(e.target.value)} className="mt-2 w-full bg-transparent text-base font-medium text-white outline-none placeholder:text-zinc-500" placeholder="Không bắt buộc" />
+                  </div>
+                  <div className="rounded-[1.35rem] border border-white/10 bg-black/25 px-4 py-3 md:col-span-2">
+                    <label className="block text-[11px] uppercase tracking-[0.24em] text-zinc-500">SĐT</label>
                     <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value.replace(/[^\d+\s]/g, ''))} inputMode="tel" className="mt-2 w-full bg-transparent text-base font-medium text-white outline-none placeholder:text-zinc-500" />
                   </div>
                 </>
@@ -762,6 +915,52 @@ export default function StaffOrderPage() {
                 {contextMode === 'table' ? 'Mở đơn theo bàn' : ui.confirmInfo}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {paymentModalOpen && pendingPaymentOrder && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-300">Thu tiền</p>
+                <h2 className="mt-2 text-2xl font-black">{pendingPaymentOrder.table}</h2>
+                <p className="mt-1 text-sm text-zinc-400">{pendingPaymentOrder.items.reduce((sum, item) => sum + item.qty, 0)} món • {formatCurrency(pendingPaymentOrder.total)}</p>
+              </div>
+              <button onClick={() => setPaymentModalOpen(false)} className="rounded-full border border-white/10 px-3 py-1 text-sm font-bold text-zinc-300">Đóng</button>
+            </div>
+
+            <div className="mt-5 rounded-[1.5rem] border border-emerald-500/20 bg-emerald-500/10 p-4">
+              {featuredPaymentMethod ? (
+                <div className="space-y-4">
+                  <div className="flex justify-center rounded-[1.5rem] bg-white p-4">
+                    {featuredPaymentMethod.qrImage ? (
+                      <Image src={featuredPaymentMethod.qrImage} alt={featuredPaymentMethod.name} width={220} height={220} unoptimized className="h-[220px] w-[220px] rounded-2xl object-contain" />
+                    ) : featuredPaymentMethod.qrContent ? (
+                      <QRCodeCanvas value={featuredPaymentMethod.qrContent} size={220} includeMargin />
+                    ) : (
+                      <div className="flex h-[220px] w-[220px] items-center justify-center text-center text-sm text-zinc-500">Chưa có QR</div>
+                    )}
+                  </div>
+                  <div className="rounded-2xl bg-black/20 p-4 text-sm">
+                    <p className="font-black text-white">{featuredPaymentMethod.name}</p>
+                    <p className="mt-1 text-zinc-300">{featuredPaymentMethod.bankName || '--'} • {featuredPaymentMethod.accountNumber || '--'}</p>
+                    <p className="mt-1 text-zinc-400">{featuredPaymentMethod.accountName || '--'}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-10 text-center text-sm text-zinc-400">Chưa có QR banking được bật trong admin.</div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => payOrderNow(pendingPaymentOrder)}
+              className="mt-4 w-full rounded-2xl bg-emerald-500 px-4 py-4 text-base font-black text-white transition hover:bg-emerald-400"
+            >
+              Xác nhận thanh toán
+            </button>
           </div>
         </div>
       )}
@@ -819,17 +1018,17 @@ export default function StaffOrderPage() {
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] font-bold uppercase tracking-[0.2em]">
                   <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-orange-300">{ui.placedBy}: {staffSession.name || staffSession.username}</span>
-                  {hasOrderInfo && <span className={`rounded-full border px-3 py-1 ${isDark ? 'border-white/10 text-zinc-300' : 'border-zinc-200 text-zinc-600'}`}>{ui.tableLabel} {tableInfo.table} • {ui.floorLabel} {tableInfo.floor} • {customerName}</span>}
+                  {hasOrderInfo && <span className={`rounded-full border px-3 py-1 ${isDark ? 'border-white/10 text-zinc-300' : 'border-zinc-200 text-zinc-600'}`}>{contextMode === 'mv' ? tableInfo.table : `${ui.tableLabel} ${tableInfo.table} • ${ui.floorLabel} ${tableInfo.floor}`} {customerName ? `• ${customerName}` : ''}</span>}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <button onClick={() => setIsDark(!isDark)} className={`rounded-2xl border p-3 transition-all ${isDark ? 'border-zinc-800 bg-zinc-900 text-orange-400' : 'border-zinc-200 bg-white text-zinc-900 shadow-sm'}`}>
                   {isDark ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
-                <button onClick={() => { setContextMode('order'); setTableInfo({ table: '', floor: '' }); setCustomerName(''); setCustomerPhone(''); setCart({}); setHistoryItems({}); setLinkedOrderIds([]); setShowOrderInfoModal(true); }} className="rounded-2xl border border-orange-500/30 bg-orange-500/10 px-4 py-3 text-sm font-semibold text-orange-300 transition hover:bg-orange-500/15">
+                <button onClick={() => { setContextMode('mv'); setTableInfo({ table: makeTakeawayCode(), floor: 'Mang về' }); setCustomerName(''); setCustomerPhone(''); setCart({}); setHistoryItems({}); setLinkedOrderIds([]); setShowOrderInfoModal(true); }} className="rounded-2xl border border-orange-500/30 bg-orange-500/10 px-4 py-3 text-sm font-semibold text-orange-300 transition hover:bg-orange-500/15">
                   {ui.orderMode}
                 </button>
-                <button onClick={() => { setContextMode('table'); setCart({}); setShowOrderInfoModal(true); }} className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/15">
+                <button onClick={() => { setContextMode('table'); setTableInfo({ table: '', floor: '' }); setCustomerName(''); setCustomerPhone(''); setCart({}); setHistoryItems({}); setLinkedOrderIds([]); setShowOrderInfoModal(true); }} className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/15">
                   {ui.tableMode}
                 </button>
                 <button onClick={handleLogout} className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${isDark ? 'border-white/10 text-zinc-300 hover:bg-white/5' : 'border-zinc-200 text-zinc-700 hover:bg-zinc-100'}`}>
@@ -840,8 +1039,8 @@ export default function StaffOrderPage() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               <div className={summaryCardClass}>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-zinc-500">Bàn hiện tại</p>
-                <p className="mt-2 text-xl font-black">{tableInfo.table ? `${tableInfo.table} • ${ui.floorLabel} ${tableInfo.floor}` : 'Chưa chọn bàn'}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-zinc-500">{contextMode === 'mv' ? 'Mã MV' : 'Bàn hiện tại'}</p>
+                <p className="mt-2 text-xl font-black">{tableInfo.table ? (contextMode === 'mv' ? tableInfo.table : `${tableInfo.table} • ${ui.floorLabel} ${tableInfo.floor}`) : 'Chưa chọn bàn'}</p>
                 <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>{linkedOrders.length > 0 ? 'Đã tìm thấy đơn cũ của bàn này.' : 'Có thể đổi bàn hoặc tạo order mới bất kỳ lúc nào.'}</p>
               </div>
               <div className={summaryCardClass}>
@@ -852,10 +1051,44 @@ export default function StaffOrderPage() {
               <div className={summaryCardClass}>
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-zinc-500">Phiếu hiện tại</p>
                 <p className="mt-2 text-xl font-black text-orange-500">{totalItems} {ui.items}</p>
-                <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>{linkedOrderIds.length > 0 ? `Đang nối ${linkedOrderIds.length} đơn mở của bàn này` : contextMode === 'order' ? 'Đang tạo phiếu mới' : 'Chưa tìm thấy đơn mở'}</p>
+                <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>{linkedOrderIds.length > 0 ? 'Đang nối đơn mở của bàn này' : contextMode === 'mv' ? 'Đơn mang về' : 'Sẵn sàng order bàn'}</p>
               </div>
             </div>
           </header>
+
+          <div className={`mb-6 rounded-[1.8rem] border p-4 lg:hidden ${isDark ? 'border-emerald-500/20 bg-emerald-500/[0.06]' : 'border-emerald-100 bg-emerald-50'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-zinc-500">Phiếu đang mở</p>
+                <p className="mt-1 text-lg font-black">{contextMode === 'mv' ? tableInfo.table || 'MV' : tableInfo.table ? `Bàn ${tableInfo.table} • Tầng ${tableInfo.floor}` : 'Chưa chọn bàn'}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => (paymentOrder ? openPaymentModal(paymentOrder) : setShowOrderInfoModal(true))}
+                disabled={!paymentOrder}
+                className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-white disabled:bg-zinc-700 disabled:text-zinc-400"
+              >
+                Thu tiền
+              </button>
+            </div>
+            {activeOrderEntries.length > 0 ? (
+              <div className="mt-4 space-y-2">
+                {activeOrderEntries.map(item => (
+                  <div key={`mobile-open-${item.id}`} className="flex items-center justify-between rounded-2xl bg-black/20 px-3 py-2">
+                    <span className="text-sm font-semibold">{item.menuItem?.nameVi}</span>
+                    <span className="text-xs font-black text-cyan-300">x{item.qty}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between pt-2 text-sm font-black">
+                  <span>Tổng đã gọi</span>
+                  <span className="text-orange-400">{formatCurrency(paymentOrder?.total || 0)}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-zinc-400">Chưa có món đã gửi cho khách này.</p>
+            )}
+          </div>
+
           {navSections.length > 0 && (
             <div className="sticky top-3 z-20 mb-8">
               <div className={`rounded-[1.75rem] border px-4 py-4 backdrop-blur-xl ${panelClass}`}>
@@ -883,8 +1116,8 @@ export default function StaffOrderPage() {
           )}
 
           <div className="mb-8">
-            <h2 className="text-3xl font-black italic">Chọn món cho bàn<span className="text-orange-500">.</span></h2>
-            <p className={`mt-2 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>Thêm món nhanh, hệ thống sẽ giữ đúng phiếu order theo bàn bạn đang phục vụ.</p>
+            <h2 className="text-2xl font-black italic sm:text-3xl">Chọn món<span className="text-orange-500">.</span></h2>
+            <p className={`mt-2 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>Chạm món để thêm nhanh, phù hợp thao tác trên điện thoại.</p>
           </div>
 
           {menuItems.length === 0 && (
@@ -954,7 +1187,7 @@ export default function StaffOrderPage() {
               </div>
             </div>
 
-            {paymentOrders.length > 0 && (
+            {paymentOrder && (
               <div className={`mt-4 rounded-[1.6rem] border p-4 ${isDark ? 'border-emerald-500/15 bg-emerald-500/[0.06]' : 'border-emerald-100 bg-emerald-50/80'}`}>
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <div>
@@ -966,36 +1199,44 @@ export default function StaffOrderPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  {paymentOrders.map(order => (
-                    <div key={`payment-staff-${order.id}`} className={`rounded-2xl border px-3 py-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white'}`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className={`text-sm font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>#{order.id}</p>
-                          <p className={`mt-1 text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>{order.customer || 'Khách lẻ'} • {order.status}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-black text-orange-400">{formatCurrency(order.total || 0)}</p>
-                          <p className={`mt-1 text-[11px] ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>{order.items.reduce((sum, item) => sum + item.qty, 0)} món</p>
-                        </div>
+                  <div className={`rounded-2xl border px-3 py-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className={`text-sm font-black ${isDark ? 'text-white' : 'text-zinc-900'}`}>{contextMode === 'mv' ? paymentOrder.table : `Bill bàn ${paymentOrder.table}`}</p>
+                        <p className={`mt-1 text-xs ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                          {paymentOrder.customer || 'Khách lẻ'} • {paymentOrder.sourceOrderIds?.length || 1} lần gọi món
+                        </p>
                       </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openPaymentPage(order.id)}
-                          className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${isDark ? 'border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.06]' : 'border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-50'}`}
-                        >
-                          Mở bill
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => payOrderNow(order)}
-                          className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400"
-                        >
-                          Thu tiền ngay
-                        </button>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-orange-400">{formatCurrency(paymentOrder.total || 0)}</p>
+                        <p className={`mt-1 text-[11px] ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>{paymentOrder.items.reduce((sum, item) => sum + item.qty, 0)} món</p>
                       </div>
                     </div>
-                  ))}
+                    <div className="mt-3 space-y-2">
+                      {activeOrderEntries.map(item => (
+                        <div key={`open-${item.id}`} className={`flex items-center justify-between rounded-xl px-3 py-2 ${isDark ? 'bg-white/[0.04]' : 'bg-zinc-50'}`}>
+                          <span className="truncate pr-3 text-sm font-semibold">{item.menuItem?.nameVi}</span>
+                          <span className="text-xs font-black text-cyan-300">x{item.qty}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openPaymentModal(paymentOrder)}
+                        className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${isDark ? 'border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.06]' : 'border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-50'}`}
+                      >
+                        Quét QR
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openPaymentModal(paymentOrder)}
+                        className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400"
+                      >
+                        Thu tiền
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

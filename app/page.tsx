@@ -478,7 +478,7 @@ export default function RestaurantMenu() {
         const data = await res.json();
         const ordId = data?.order?.id;
         if (ordId) {
-          setPlacedOrderIds(prev => [...prev, String(ordId)]);
+          setPlacedOrderIds(prev => (prev.includes(String(ordId)) ? prev : [...prev, String(ordId)]));
           // Keep cart visible in sidebar as "Đơn đã đặt"
           setPlacedOrderCart(prev => {
             const next = { ...prev };
@@ -504,7 +504,7 @@ export default function RestaurantMenu() {
               const next = currentTables.map(tbl => {
                 if (normalizeSeatValue(tbl.table) === normalizeSeatValue(tableInfo.table) &&
                     normalizeSeatValue(tbl.floor) === normalizeSeatValue(tableInfo.floor)) {
-                  return { ...tbl, status: 'ordering' };
+                  return { ...tbl, status: 'occupied' };
                 }
                 return tbl;
               });

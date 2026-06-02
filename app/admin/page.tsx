@@ -2590,6 +2590,7 @@ export default function AdminPage() {
   const [orderDeleteSuccess, setOrderDeleteSuccess] = useState(false);
   const [customerViewMode, setCustomerViewMode] = useState<HistoryViewMode>('today');
   const [customerSelectedDate, setCustomerSelectedDate] = useState(getDateInputValue(new Date()));
+  const menuById = useMemo(() => new Map(menuItems.map(item => [item.id, item])), [menuItems]);
 
   // Notifications
   const [notificationsRead, setNotificationsRead] = useState(false);
@@ -2695,7 +2696,7 @@ export default function AdminPage() {
     );
 
     const nextStatus: TableInfo['status'] = relatedOrders.some(order => !isClosedOrderStatus(order.status))
-      ? 'ordering'
+      ? 'occupied'
       : 'empty';
 
     updateTableStatusByOrder(tableNumber, floor, nextStatus);
@@ -3197,22 +3198,22 @@ export default function AdminPage() {
     selectedDate,
     onViewModeChange,
     onSelectedDateChange,
-    detailOrder,
-    setDetailOrder,
-    paymentOrder,
-    setPaymentOrder,
-    detailEditItems,
-    setDetailEditItems,
-    showDeleteConfirm,
-    setShowDeleteConfirm,
-    detailMsg,
-    setDetailMsg,
-    deleteConfirmOrder,
-    setDeleteConfirmOrder,
-    deleteSuccess,
-    setDeleteSuccess,
+    detailOrder: initialDetailOrder,
+    paymentOrder: initialPaymentOrder,
+    detailEditItems: initialDetailEditItems,
+    showDeleteConfirm: initialShowDeleteConfirm,
+    detailMsg: initialDetailMsg,
+    deleteConfirmOrder: initialDeleteConfirmOrder,
+    deleteSuccess: initialDeleteSuccess,
   }) => {
     const todayKey = getDateInputValue(new Date());
+    const [detailOrder, setDetailOrder] = useState<OrderType | null>(initialDetailOrder);
+    const [paymentOrder, setPaymentOrder] = useState<OrderType | null>(initialPaymentOrder);
+    const [detailEditItems, setDetailEditItems] = useState<Array<{ id: string; qty: number }> | null>(initialDetailEditItems);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(initialShowDeleteConfirm);
+    const [detailMsg, setDetailMsg] = useState(initialDetailMsg);
+    const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<OrderType | null>(initialDeleteConfirmOrder);
+    const [deleteSuccess, setDeleteSuccess] = useState(initialDeleteSuccess);
 
     useEffect(() => {
       if (!detailOrder) return;
@@ -3220,7 +3221,7 @@ export default function AdminPage() {
       if (latestOrder) setDetailOrder(latestOrder);
     }, [detailOrder?.id, orders, setDetailOrder]);
 
-    const filteredOrders = orders
+    const filteredOrders = useMemo(() => orders
       .filter(order => {
         const activeDate = viewMode === 'today' ? todayKey : selectedDate;
         return isSameDate(order.createdAt, activeDate);
@@ -3231,9 +3232,9 @@ export default function AdminPage() {
         if (aPaid && !bPaid) return 1;
         if (!aPaid && bPaid) return -1;
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      });
+      }), [orders, selectedDate, todayKey, viewMode]);
 
-    const counts = filteredOrders.reduce(
+    const counts = useMemo(() => filteredOrders.reduce(
       (acc, order) => {
         const status = order.status;
         if (status === 'Chờ xử lý' || status === 'Processing') acc.processing++;
@@ -3245,7 +3246,7 @@ export default function AdminPage() {
         return acc;
       },
       { processing: 0, cooking: 0, cooked: 0, rejected: 0, served: 0, paid: 0 },
-    );
+    ), [filteredOrders]);
 
     const updateStatus = async (id: string, newStatus: string) => {
       const targetOrder = orders.find(order => order.id === id);
@@ -3293,7 +3294,7 @@ export default function AdminPage() {
 
     const printOrder = (order: OrderType) => {
       const lines = order.items.map(item => {
-        const menu = menuItems.find(menuEntry => menuEntry.id === item.id);
+        const menu = menuById.get(item.id);
         const name = menu ? (lang === 'vi' ? menu.nameVi : menu.nameEn) : item.id;
         return { name, qty: item.qty };
       });
@@ -3396,6 +3397,44 @@ export default function AdminPage() {
       paid: lang === 'vi' ? 'Đã thanh toán' : 'Paid',
     };
 
+    const orderText = useMemo(() => ({
+      paid: lang === 'vi' ? 'Đã thanh toán' : 'Paid',
+      table: lang === 'vi' ? 'Bàn' : 'Table',
+      floor: lang === 'vi' ? 'Tầng' : 'Floor',
+      order: lang === 'vi' ? 'Đơn' : 'Order',
+      orders: lang === 'vi' ? 'đơn' : 'orders',
+      customer: lang === 'vi' ? 'Khách hàng' : 'Customer',
+      walkIn: lang === 'vi' ? 'Khách lẻ' : 'Walk-in',
+      handler: lang === 'vi' ? 'Phụ trách' : 'Handler',
+      none: lang === 'vi' ? 'Chưa có' : 'None',
+      time: lang === 'vi' ? 'Thời gian' : 'Time',
+      totalItems: lang === 'vi' ? 'Tổng món' : 'Total items',
+      total: lang === 'vi' ? 'Tổng tiền' : 'Total',
+      view: lang === 'vi' ? 'Xem' : 'View',
+      edit: lang === 'vi' ? 'Sửa' : 'Edit',
+      del: lang === 'vi' ? 'Xóa' : 'Del',
+      pay: lang === 'vi' ? 'Thanh toán' : 'Pay',
+      details: lang === 'vi' ? 'Chi tiết đơn' : 'Order details',
+      close: lang === 'vi' ? 'Đóng' : 'Close',
+      status: lang === 'vi' ? 'Trạng thái' : 'Status',
+      tableFloor: lang === 'vi' ? 'Bàn / tầng' : 'Table / floor',
+      items: lang === 'vi' ? 'Danh sách món' : 'Items',
+      editItems: lang === 'vi' ? 'Sửa món' : 'Edit items',
+      cancelEdit: lang === 'vi' ? 'Hủy sửa' : 'Cancel',
+      perItem: lang === 'vi' ? 'món' : 'item',
+      tempTotal: lang === 'vi' ? 'Tổng tạm:' : 'Temp total:',
+      saveChanges: lang === 'vi' ? 'Lưu thay đổi' : 'Save changes',
+      saved: lang === 'vi' ? 'Đã lưu thay đổi.' : 'Changes saved.',
+      saveFailed: lang === 'vi' ? 'Không thể lưu thay đổi.' : 'Failed to save changes.',
+      deleteOrder: lang === 'vi' ? 'Xóa đơn' : 'Delete order',
+      confirmDelete: lang === 'vi' ? 'Xác nhận xóa' : 'Confirm delete',
+      deleteFailed: lang === 'vi' ? 'Không thể xóa đơn.' : 'Failed to delete order.',
+      deleted: lang === 'vi' ? 'Đã xóa đơn hàng.' : 'Order deleted.',
+      noOrders: lang === 'vi' ? 'Không có đơn hàng trong ngày được chọn.' : 'No orders for the selected day.',
+      today: lang === 'vi' ? 'Đơn hôm nay' : 'Today orders',
+      history: lang === 'vi' ? 'Xem lịch sử' : 'History',
+      chooseDate: lang === 'vi' ? 'Chọn ngày' : 'Choose date',
+    }), [lang]);
 
     const getStatusTone = (status: string) => {
       if (status === 'Đã thanh toán' || status === 'Paid' || isPaidOrderStatus(status)) {
@@ -3458,6 +3497,215 @@ export default function AdminPage() {
       };
     };
 
+    const orderCards = useMemo(() => {
+      const groupedMap = new Map<string, {
+        table: string;
+        floor: string;
+        orders: OrderType[];
+        totalItems: number;
+        totalMoney: number;
+        customer: string;
+        handlers: string[];
+        latestCreatedAt: string;
+        earliestCreatedAt: string;
+      }>();
+
+      filteredOrders.forEach(order => {
+        const isOpenOrder = !isPaidOrderStatus(order.status) && !isClosedOrderStatus(order.status);
+        const tableKey = normalizeSeatValue(order.table);
+        const floorKey = normalizeSeatValue(order.floor);
+        const customerKey = String(order.customer || '').trim().toLowerCase();
+        const key = isOpenOrder
+          ? `open__${tableKey}__${floorKey}`
+          : isPaidOrderStatus(order.status)
+            ? `paid__${tableKey}__${floorKey}__${customerKey}`
+            : `closed__${order.id}`;
+        const existing = groupedMap.get(key);
+        const qty = order.items.reduce((s, i) => s + (i.qty || 0), 0);
+        if (existing) {
+          existing.orders.push(order);
+          existing.totalItems += qty;
+          existing.totalMoney += Number(order.total || 0);
+          if (order.handler) existing.handlers.push(order.handler);
+          const d = new Date(order.createdAt);
+          if (d > new Date(existing.latestCreatedAt)) existing.latestCreatedAt = order.createdAt;
+          if (d < new Date(existing.earliestCreatedAt)) existing.earliestCreatedAt = order.createdAt;
+          if (!existing.customer && order.customer) existing.customer = order.customer;
+        } else {
+          groupedMap.set(key, {
+            table: order.table,
+            floor: order.floor,
+            orders: [order],
+            totalItems: qty,
+            totalMoney: Number(order.total || 0),
+            customer: order.customer || '',
+            handlers: order.handler ? [order.handler] : [],
+            latestCreatedAt: order.createdAt,
+            earliestCreatedAt: order.createdAt,
+          });
+        }
+      });
+
+      return Array.from(groupedMap.values()).map((group) => {
+        const unpaidOrders = group.orders.filter(o => !isPaidOrderStatus(o.status) && !isClosedOrderStatus(o.status));
+        const allPaid = unpaidOrders.length === 0;
+        const displayOrders = allPaid ? group.orders : unpaidOrders;
+        const displayTotalItems = displayOrders.reduce(
+          (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + (item.qty || 0), 0),
+          0,
+        );
+        const displayTotalMoney = displayOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+        const displayCustomer = displayOrders.find(order => order.customer)?.customer || group.customer;
+        const displayHandlers = displayOrders.map(order => order.handler).filter(Boolean) as string[];
+        const displayEarliestCreatedAt = displayOrders.reduce(
+          (earliest, order) => new Date(order.createdAt) < new Date(earliest) ? order.createdAt : earliest,
+          displayOrders[0]?.createdAt || group.earliestCreatedAt,
+        );
+        const displayLatestCreatedAt = displayOrders.reduce(
+          (latest, order) => new Date(order.createdAt) > new Date(latest) ? order.createdAt : latest,
+          displayOrders[0]?.createdAt || group.latestCreatedAt,
+        );
+        const primaryOrder = displayOrders[0] || group.orders[0];
+
+        let displayStatus: string;
+        let tone: ReturnType<typeof getStatusTone>;
+        if (allPaid) {
+          displayStatus = orderText.paid;
+          tone = getStatusTone(displayStatus);
+        } else {
+          const worstStatusPriority = ['Chờ xử lý', 'Processing', 'Đang nấu', 'Cooking', 'Đã nấu xong', 'Cooked', 'Đã phục vụ', 'Served'];
+          const topStatus = [...unpaidOrders]
+            .sort((a, b) => (worstStatusPriority.indexOf(a.status) < 0 ? 999 : worstStatusPriority.indexOf(a.status)) - (worstStatusPriority.indexOf(b.status) < 0 ? 999 : worstStatusPriority.indexOf(b.status)))
+            .find(() => true)?.status || unpaidOrders[0].status;
+          displayStatus = `${topStatus} (${unpaidOrders.length})`;
+          tone = getStatusTone(topStatus);
+        }
+        const displayOrder = displayOrders.length > 1 ? buildCombinedOrder(displayOrders, displayStatus) : primaryOrder;
+
+        return (
+          <article
+            key={`${group.table}__${group.floor}__${group.orders.map(order => order.id).join('_')}`}
+            className={`rounded-[20px] border p-3 transition ${tone.card} ${isDark ? 'text-white' : 'text-zinc-900'}`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2.5">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] ${isDark ? 'bg-black/30 text-zinc-200' : 'bg-white/80 text-zinc-700'}`}>
+                    {`${orderText.table} ${group.table || '--'}`}
+                    {group.floor ? ` • ${orderText.floor} ${group.floor}` : ''}
+                  </span>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone.badge}`}>
+                    {displayStatus}
+                  </span>
+                  {displayOrders.length > 1 && (
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isDark ? 'bg-orange-500/20 text-orange-300' : 'bg-orange-100 text-orange-700'}`}>
+                      {`${displayOrders.length} ${orderText.orders}`}
+                    </span>
+                  )}
+                </div>
+                <p className="text-base font-bold text-zinc-300">
+                  {`${orderText.table} ${group.table || '--'} • ${orderText.floor} ${group.floor || '--'}`}
+                </p>
+              </div>
+            </div>
+
+            <div className={`mt-3 rounded-[18px] border p-3 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                    {orderText.customer}
+                  </p>
+                  <p className="mt-2 text-base font-bold">{displayCustomer || orderText.walkIn}</p>
+                  <p className={`mt-1 text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                    {`${orderText.handler}: ${[...new Set(displayHandlers)].join(', ') || orderText.none}`}
+                  </p>
+                </div>
+                <div className={`min-w-[130px] rounded-2xl border px-3 py-2 text-right ${isDark ? 'border-white/10 bg-black/25' : 'border-zinc-200 bg-zinc-50'}`}>
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{orderText.table}</p>
+                  <p className="mt-1 text-sm font-bold">{group.table || '--'}{group.floor ? ` • ${orderText.floor} ${group.floor}` : ''}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-2.5 grid gap-2 grid-cols-[1.05fr_1fr]">
+              <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
+                <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                  {orderText.time}
+                </p>
+                <p className="mt-1 text-sm font-bold md:text-base">
+                  {new Date(displayEarliestCreatedAt).toLocaleTimeString(lang === 'vi' ? 'vi-VN' : 'en-US')}
+                </p>
+                <p className={`text-xs md:text-sm ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>
+                  {new Date(displayLatestCreatedAt).toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-US')}
+                  {displayOrders.length > 1 ? ` (${displayOrders.length} ${orderText.orders})` : ''}
+                </p>
+              </div>
+
+              <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/20' : 'border-zinc-200 bg-white/80'}`}>
+                <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                  {orderText.totalItems}
+                </p>
+                <p className="mt-1 text-sm font-bold md:text-base">{displayTotalItems}</p>
+              </div>
+            </div>
+
+            <div className="mt-2.5 grid gap-2 grid-cols-1">
+              <div className={`rounded-[16px] border px-3 py-2 ${isDark ? 'border-white/10 bg-black/25' : 'border-zinc-200 bg-white/80'}`}>
+                <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-500">
+                  {orderText.total}
+                </p>
+                <p className="mt-1 text-lg font-black text-orange-400 md:text-[1.45rem]">
+                  {formatVND(displayTotalMoney).replace(/[^\d.,-]/g, '')}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-2.5 grid gap-2 grid-cols-3">
+              <button
+                type="button"
+                onClick={() => { setDetailOrder(displayOrder); setDetailEditItems(null); }}
+                className={`inline-flex h-12 items-center justify-center rounded-2xl border px-3 text-center text-sm font-semibold transition ${
+                  isDark
+                    ? 'border-white/10 bg-black/25 text-white hover:bg-black/40'
+                    : 'border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50'
+                }`}
+              >
+                {lang === 'vi' ? 'Xem' : 'View'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDetailOrder(primaryOrder); setDetailEditItems([...primaryOrder.items]); }}
+                className="inline-flex h-12 items-center justify-center rounded-2xl border border-blue-500/30 bg-blue-500/10 px-3 text-center text-sm font-semibold text-blue-400 transition hover:bg-blue-500/20"
+              >
+                {orderText.edit}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOrder(primaryOrder)}
+                className="inline-flex h-12 items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 px-3 text-center text-sm font-semibold text-red-400 transition hover:bg-red-500/20"
+              >
+                {orderText.del}
+              </button>
+            </div>
+            <div className="mt-2 grid gap-2 grid-cols-1">
+              <button
+                type="button"
+                onClick={() => { if (!allPaid) setPaymentOrder(displayOrder); }}
+                disabled={allPaid}
+                className={`inline-flex h-12 items-center justify-center rounded-2xl px-3 text-center text-sm font-semibold text-white shadow-lg transition ${
+                  allPaid
+                    ? 'cursor-default bg-emerald-700/80 shadow-emerald-700/10'
+                    : 'bg-emerald-500 shadow-emerald-500/20 hover:bg-emerald-400'
+                }`}
+              >
+                {allPaid ? orderText.paid : orderText.pay}
+              </button>
+            </div>
+          </article>
+        );
+      });
+    }, [filteredOrders, isDark, lang, orderText]);
+
     return (
       <div className="space-y-6">
         <div className={`rounded-2xl border p-3 md:p-4 ${isDark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-zinc-50'}`}>
@@ -3509,7 +3757,8 @@ export default function AdminPage() {
 
         {filteredOrders.length > 0 ? (
           <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-            {(() => {
+            {orderCards}
+            {false && (() => {
               // Group orders by table+floor
               const groupedMap = new Map<string, {
                 table: string;
@@ -3525,7 +3774,14 @@ export default function AdminPage() {
 
               filteredOrders.forEach(order => {
                 const isOpenOrder = !isPaidOrderStatus(order.status) && !isClosedOrderStatus(order.status);
-                const key = isOpenOrder ? `open__${order.table}__${order.floor}` : `closed__${order.id}`;
+                const tableKey = normalizeSeatValue(order.table);
+                const floorKey = normalizeSeatValue(order.floor);
+                const customerKey = String(order.customer || '').trim().toLowerCase();
+                const key = isOpenOrder
+                  ? `open__${tableKey}__${floorKey}`
+                  : isPaidOrderStatus(order.status)
+                    ? `paid__${tableKey}__${floorKey}__${customerKey}`
+                    : `closed__${order.id}`;
                 const existing = groupedMap.get(key);
                 const qty = order.items.reduce((s, i) => s + (i.qty || 0), 0);
                 if (existing) {
@@ -3719,8 +3975,8 @@ export default function AdminPage() {
           </div>
         )}
 
-        {detailOrder && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+        {detailOrder && createPortal((
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
             <div className={`w-full max-w-3xl rounded-[28px] border p-5 shadow-2xl max-h-[90vh] overflow-y-auto ${isDark ? 'border-zinc-700 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-900'}`}>
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -3787,7 +4043,7 @@ export default function AdminPage() {
 
                 <div className="space-y-2">
                   {(detailEditItems || detailOrder.items).map((item) => {
-                    const menu = menuItems.find(m => m.id === item.id);
+                    const menu = menuById.get(item.id);
                     const name = menu ? (lang === 'vi' ? menu.nameVi : menu.nameEn) : item.id;
                     const unitPrice = menu?.price || 0;
                     return (
@@ -3843,14 +4099,14 @@ export default function AdminPage() {
                     <span className="text-sm text-zinc-400">
                       {lang === 'vi' ? 'Tổng tạm:' : 'Temp total:'}{' '}
                       <span className="font-black text-orange-400">
-                        {formatVND(detailEditItems.reduce((s, i) => s + (menuItems.find(m => m.id === i.id)?.price || 0) * i.qty, 0))}
+                        {formatVND(detailEditItems.reduce((s, i) => s + (menuById.get(i.id)?.price || 0) * i.qty, 0))}
                       </span>
                     </span>
                     <button
                       type="button"
                       onClick={async () => {
                         if (!detailEditItems || detailEditItems.length === 0) return;
-                        const newTotal = detailEditItems.reduce((s, i) => s + (menuItems.find(m => m.id === i.id)?.price || 0) * i.qty, 0);
+                        const newTotal = detailEditItems.reduce((s, i) => s + (menuById.get(i.id)?.price || 0) * i.qty, 0);
                         try {
                           const res = await fetch(`/api/orders/${detailOrder.id}`, {
                             method: 'PATCH',
@@ -3909,7 +4165,7 @@ export default function AdminPage() {
                               normalizeSeatValue(o.floor) === normalizeSeatValue(detailOrder.floor || '')
                             );
                             const nextTableStatus = remainingOrders.some(o => !isClosedOrderStatus(o.status))
-                              ? 'ordering'
+                              ? 'occupied'
                               : 'empty';
                             updateTableStatusByOrder(detailOrder.table, detailOrder.floor || '', nextTableStatus);
                           }
@@ -3950,7 +4206,7 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
-        )}
+        ), document.body)}
 
         {/* Delete confirmation modal */}
         {deleteConfirmOrder && (
@@ -3993,7 +4249,7 @@ export default function AdminPage() {
                           normalizeSeatValue(o.table) === normalizeSeatValue(deleteConfirmOrder.table) &&
                           normalizeSeatValue(o.floor) === normalizeSeatValue(deleteConfirmOrder.floor || '')
                         );
-                        const nextStatus = remaining.some(o => !isClosedOrderStatus(o.status)) ? 'ordering' : 'empty';
+                        const nextStatus = remaining.some(o => !isClosedOrderStatus(o.status)) ? 'occupied' : 'empty';
                         updateTableStatusByOrder(deleteConfirmOrder.table, deleteConfirmOrder.floor || '', nextStatus);
                       }
                       setDeleteConfirmOrder(null);

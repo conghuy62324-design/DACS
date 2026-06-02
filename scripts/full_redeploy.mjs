@@ -1,29 +1,29 @@
-import { NodeSSH } from 'node-ssh';
+﻿import { NodeSSH } from 'node-ssh';
 
 const ssh = new NodeSSH();
 
 async function run() {
   try {
-    console.log('🔌 Connecting...');
+    console.log('ðŸ”Œ Connecting...');
     await ssh.connect({
-      host: '160.191.243.56',
+      host: '160.191.243.77',
       username: 'root',
-      password: 'Huy0405Huy2004',
+      password: process.env.VPS_PASSWORD || '',
       readyTimeout: 30000,
     });
-    console.log('✅ Connected');
+    console.log('âœ… Connected');
 
     const local = 'C:/Users/os/Downloads/DACS/DACS';
     const remote = '/var/www/dacs';
     const stand = '/var/www/dacs/.next/standalone';
 
     // Step 1: Full stop + clean
-    console.log('🛑 Stopping all processes...');
+    console.log('ðŸ›‘ Stopping all processes...');
     await ssh.execCommand('pm2 delete all 2>/dev/null; pkill -9 node 2>/dev/null; sleep 2; echo stopped', { execTimeout: 15000 });
     console.log('Killed');
 
     // Step 2: Upload source
-    console.log('📤 Upload source...');
+    console.log('ðŸ“¤ Upload source...');
     await ssh.putDirectory(local, remote, {
       recursive: true, concurrency: 10,
       validate: (p) => {
@@ -35,10 +35,10 @@ async function run() {
     console.log('Uploaded');
 
     // Step 3: Full clean + rebuild
-    console.log('🧹 Full clean...');
+    console.log('ðŸ§¹ Full clean...');
     await ssh.execCommand(`cd ${remote} && rm -rf .next && echo cleaned`, { execTimeout: 15000 });
 
-    console.log('🔨 Building...');
+    console.log('ðŸ”¨ Building...');
     const buildR = await ssh.execCommand(
       `cd ${remote} && npm run build 2>&1`,
       { cwd: remote, execTimeout: 320000 }
@@ -59,14 +59,14 @@ async function run() {
     );
 
     // Step 5: Copy entire .next to standalone/.next
-    console.log('📁 Syncing .next to standalone...');
+    console.log('ðŸ“ Syncing .next to standalone...');
     await ssh.execCommand(
       `rm -rf ${stand}/.next && cp -r ${remote}/.next ${stand}/.next && echo synced`,
       { execTimeout: 60000 }
     );
 
     // Step 6: Start PM2
-    console.log('🚀 Starting PM2...');
+    console.log('ðŸš€ Starting PM2...');
     await ssh.execCommand(
       `cd ${stand} && pm2 start ecosystem.config.js 2>&1`,
       { cwd: stand, execTimeout: 15000 }
@@ -101,11 +101,11 @@ async function run() {
     );
     console.log('bg-zinc count:', styledR.stdout.trim());
 
-    console.log('✅ DONE! https://hchrestaurant.shop');
+    console.log('âœ… DONE! https://hchrestaurant.shop');
     ssh.dispose();
     process.exit(0);
   } catch (e) {
-    console.error('❌ FATAL:', e.message);
+    console.error('âŒ FATAL:', e.message);
     ssh.dispose();
     process.exit(1);
   }

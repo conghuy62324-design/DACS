@@ -166,6 +166,52 @@ function emitOrders(orders: unknown[], order?: unknown) {
   }
 }
 
+const normalizeStatus = (value?: string) =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const normalizeSeatValue = (value?: string) =>
+  String(value || '').trim().replace(/^0+(\d)/, '$1');
+
+const isClosedOrderStatus = (status?: string) => {
+  const normalized = normalizeStatus(status);
+  return (
+    normalized.includes('paid') ||
+    normalized.includes('thanh toan') ||
+    normalized.includes('tu choi') ||
+    normalized.includes('rejected')
+  );
+};
+
+async function addItemsToOrder(db: Awaited<ReturnType<typeof initializeDatabase>>, orderId: string, items: OrderItem[]) {
+  if (!items.length) return;
+
+  const [existingRows] = await db.query(
+    'SELECT item_id as itemId, qty FROM order_items WHERE order_id = ?',
+    [orderId],
+  ) as [Array<{ itemId: string; qty: number }>, unknown];
+  const existingQty = new Map(existingRows.map(item => [String(item.itemId), Number(item.qty || 0)]));
+
+  for (const item of items) {
+    const itemId = String(item.id || '').trim();
+    const qty = Number(item.qty || 0);
+    if (!itemId || qty <= 0) continue;
+
+    if (existingQty.has(itemId)) {
+      await db.execute(
+        'UPDATE order_items SET qty = ? WHERE order_id = ? AND item_id = ?',
+        [(existingQty.get(itemId) || 0) + qty, orderId, itemId],
+      );
+      existingQty.set(itemId, (existingQty.get(itemId) || 0) + qty);
+    } else {
+      await db.execute('INSERT INTO order_items (order_id, item_id, qty) VALUES (?, ?, ?)', [orderId, itemId, qty]);
+      existingQty.set(itemId, qty);
+    }
+  }
+}
+
 export async function GET() {
   try {
     return NextResponse.json(await getOrders());
@@ -179,7 +225,7 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
     const { db, schema } = await ensureOrdersSchema();
-    const id = `o${Date.now()}`;
+    let id = `o${Date.now()}`;
     // Accept both formats: map { itemId: qty } or array [{ id, qty }]
     let items: OrderItem[];
     if (Array.isArray(data.items)) {
@@ -191,19 +237,98 @@ export async function POST(request: Request) {
     }
     const customerValue = String(data.customer || data.customerName || '').trim();
     const phoneValue = String(data.phone || data.customerPhone || '').replace(/\s+/g, '').trim();
+    const tableValue = String(data.table || '');
+    const floorValue = String(data.floor || '');
+    const handlerValue = String(data.handler || '');
+    if (tableValue.trim().toUpperCase().startsWith('MV')) {
+      id = tableValue.trim().toUpperCase();
+    }
     const totalValue = Number(data.total ?? data.totalPrice) || 0;
     const createdAtValue = new Date();
     const statusValue = String(data.status || 'Chờ xử lý').trim() || 'Chờ xử lý';
+    if (tableValue && floorValue) {
+      const [candidateRows] = await db.query(
+        `SELECT id, table_name as tableName, floor, customer, phone, total, status, handler, created_at as createdAt
+         FROM orders
+         WHERE table_name = ? AND floor = ?
+         ORDER BY created_at ASC`,
+        [tableValue, floorValue],
+      ) as [Array<{
+        id: string;
+        tableName: string;
+        floor: string;
+        customer: string;
+        phone: string;
+        total: number;
+        status: string;
+        handler: string;
+        createdAt: string;
+      }>, unknown];
+
+      const openOrders = candidateRows.filter(order =>
+        normalizeSeatValue(order.tableName) === normalizeSeatValue(tableValue) &&
+        normalizeSeatValue(order.floor) === normalizeSeatValue(floorValue) &&
+        !isClosedOrderStatus(order.status),
+      );
+
+      if (openOrders.length > 0) {
+        const [targetOrder, ...extraOrders] = openOrders;
+        let mergedTotal = Number(targetOrder.total || 0);
+        const mergedHandlers = new Set<string>();
+        if (targetOrder.handler) mergedHandlers.add(targetOrder.handler);
+        if (handlerValue) mergedHandlers.add(handlerValue);
+
+        for (const extraOrder of extraOrders) {
+          const [extraItems] = await db.query(
+            'SELECT item_id as id, qty FROM order_items WHERE order_id = ?',
+            [extraOrder.id],
+          ) as [OrderItem[], unknown];
+          await addItemsToOrder(db, targetOrder.id, extraItems);
+          mergedTotal += Number(extraOrder.total || 0);
+          if (extraOrder.handler) mergedHandlers.add(extraOrder.handler);
+          await db.execute('DELETE FROM order_items WHERE order_id = ?', [extraOrder.id]);
+          await db.execute('DELETE FROM orders WHERE id = ?', [extraOrder.id]);
+        }
+
+        await addItemsToOrder(db, targetOrder.id, items);
+        mergedTotal += totalValue;
+
+        const mergedCustomer = customerValue || targetOrder.customer || '';
+        const mergedPhone = phoneValue || targetOrder.phone || '';
+        const mergedHandler = [...mergedHandlers].join(', ');
+        const updateFields = ['customer = ?', 'phone = ?', 'total = ?', 'status = ?', 'handler = ?'];
+        const updateValues: Array<string | number> = [mergedCustomer, mergedPhone, mergedTotal, statusValue, mergedHandler];
+
+        if (schema.hasLegacyCustomerName) {
+          updateFields.push('CustomerName = ?');
+          updateValues.push(mergedCustomer);
+        }
+        if (schema.hasLegacyTotalAmount) {
+          updateFields.push('TotalAmount = ?');
+          updateValues.push(mergedTotal);
+        }
+
+        updateValues.push(targetOrder.id);
+        await db.execute(`UPDATE orders SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
+
+        const orders = await getOrders();
+        const order = orders.find(current => current.id === targetOrder.id);
+        emitOrders(orders, order);
+
+        return NextResponse.json({ ok: true, order, merged: true });
+      }
+    }
+
     const orderColumns = ['id', 'table_name', 'floor', 'customer', 'phone', 'total', 'status', 'handler', 'created_at'];
     const orderValues: Array<string | number | Date> = [
       id,
-      String(data.table || ''),
-      String(data.floor || ''),
+      tableValue,
+      floorValue,
       customerValue,
       phoneValue,
       totalValue,
       statusValue,
-      String(data.handler || ''),
+      handlerValue,
       createdAtValue,
     ];
 
